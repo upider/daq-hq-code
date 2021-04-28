@@ -1,30 +1,27 @@
 #include <memory>
 #include <thread>
 
-#include <producer/ProducerServer.h>
+#include "producer/ProducerServer.h"
+#include "message/IMultiDataMessage.h"
 
 using namespace message_pass;
 
-class TestMessage : virtual public IDataMessage
+class TestMessage : virtual public IMultiDataMessage
 {
 public:
-    void *get_data()
+    size_t get_buf_num()
     {
         return 0;
-    }
-    size_t get_size()
-    {
-        return 0;
-    }
-    bool operator<(const IDataMessage &other)
-    {
-        return false;
     }
     size_t get_key()
     {
         return 100;
     }
-    void set_data(void *data, size_t size) {}
+    void set_key(std::size_t key) {}
+    void add_buf(size_t size) {}
+    std::pair<void*, std::size_t> operator[](std::size_t) {
+        return std::pair<void*, std::size_t>(nullptr, 0);
+    }
 };
 
 class TestMessage2
