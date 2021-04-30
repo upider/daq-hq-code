@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package message_pass;
+
+message RequestMessage {
+    enum CMD {
+        GET = 0;
+        DEL = 1;
+        RECOVER = 2;
+    }
+    CMD cmd = 1;
+    uint32 key = 2;
+    string sink = 3;
+}

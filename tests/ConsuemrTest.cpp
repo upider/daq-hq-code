@@ -1,13 +1,12 @@
 #include <memory>
 #include <thread>
-#include <unistd.h>
 
-#include "producer/ProducerServer.h"
+#include "consumer/ConsumerServer.h"
 #include "message/IMultiDataMessage.h"
 
 using namespace message_pass;
 
-class TestMessage2 : virtual public IMultiDataMessage
+class TestMessage : virtual public IMultiDataMessage
 {
 public:
     size_t get_buf_num()
@@ -28,14 +27,14 @@ public:
 int main(void)
 {
 
-    std::shared_ptr<ProducerServer<TestMessage2>>
-        cs(new ProducerServer<TestMessage2>("192.168.37.201:9092", {"test"}, 1));
+    std::shared_ptr<ConsumerServer<TestMessage>>
+        ps(new ConsumerServer<TestMessage>("0.0.0.0", 9999, "192.168.37.201:9092", {"test"}, 1));
     std::thread start_thread([&]() {
-        cs->start();
+        ps->start();
     });
     start_thread.join();
 
     sleep(500);
-    cs->stop();
+    ps->stop();
     return 0;
 }
