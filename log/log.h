@@ -64,7 +64,7 @@ namespace message_pass
 		char *dt = ctime(&now);                                         \
 		auto dt_str = std::string(dt);                                  \
 		dt_str.pop_back();                                              \
-		std::cout << dt_str << "\033[32mINFO\033[0m "                   \
+		std::cout << dt_str << " \033[32mINFO\033[0m "                   \
 				  << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ \
 				  << X << "\n";                                         \
 	}

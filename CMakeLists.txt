@@ -2,8 +2,9 @@ project(MessagePassing)
 cmake_minimum_required(VERSION 3.10)
 
 #add_definitions(-Wall -std=c++11 -rdynamic)
-# add_definitions(-rdynamic -g)
 # set(CMAKE_CXX_FLAGS "-std=c++11")
+# easyloggingpp macros
+add_compile_definitions(AUTO_INITIALIZE_EASYLOGGINGPP)
 SET(CMAKE_CXX_COMPILER "g++")
 SET(CMAKE_C_COMPILER "gcc")
 set(CXX_FLAGS -g -Wall -Wextra -Wconversion -std=c++11)
@@ -36,6 +37,12 @@ include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${Protobuf_INCLUDE_DIRS})
 aux_source_directory(${PROJECT_SOURCE_DIR}/src SOURCES)
 link_directories(${PROJECT_SOURCE_DIR}/libs /usr/lib64)
+
+add_executable(IDataMessageTest tests/IDataMessageTest ${SOURCES})
+target_link_libraries(IDataMessageTest ${Protobuf_LIBRARIES} pthread)
+
+add_executable(RequestMessageTest tests/RequestMessageTest.cpp ${SOURCES})
+target_link_libraries(RequestMessageTest ${Protobuf_LIBRARIES} pthread)
 
 add_executable(ProducerTest tests/ProducerTest.cpp ${SOURCES})
 target_link_libraries(ProducerTest ${Boost_LIBRARIES} ${Protobuf_LIBRARIES} zmq rdkafka++ pthread)

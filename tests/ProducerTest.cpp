@@ -4,38 +4,31 @@
 
 #include "producer/ProducerServer.h"
 #include "message/IMultiDataMessage.h"
+#include "TestDataMessage.h"
 
 using namespace message_pass;
 
-class TestMessage2 : virtual public IMultiDataMessage
-{
-public:
-    size_t get_buf_num()
-    {
-        return 0;
-    }
-    size_t get_key()
-    {
-        return 100;
-    }
-    void set_key(std::size_t key) {}
-    void add_buf(size_t size) {}
-    std::pair<void*, std::size_t> operator[](std::size_t) {
-        return std::pair<void*, std::size_t>(nullptr, 0);
-    }
-};
-
 int main(void)
 {
+    std::string topic{"test"};
+    std::string source{"centos204"};
 
-    std::shared_ptr<ProducerServer<TestMessage2>>
-        cs(new ProducerServer<TestMessage2>("192.168.37.201:9092", {"test"}, 1));
+    std::shared_ptr<ProducerServer<TestDataMessage>> 
+    ps(new ProducerServer<TestDataMessage>("192.168.37.201:9092", {topic}, 1));
+
+    ps->set_identity(source);
     std::thread start_thread([&]() {
-        cs->start();
+        ps->start();
     });
     start_thread.join();
 
-    sleep(500);
-    cs->stop();
+    TestDataMessage* msg = new TestDataMessage("hello world this is IHEP", 24, 24);
+    // msg->add("hello world", 11);
+    ps->send(topic, msg);
+
+    sleep(50);
+    ps->stop();
+
+    delete msg;
     return 0;
 }

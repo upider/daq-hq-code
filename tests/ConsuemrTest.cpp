@@ -1,40 +1,36 @@
-#include <memory>
 #include <thread>
 
 #include "consumer/ConsumerServer.h"
-#include "message/IMultiDataMessage.h"
+#include "message/IDataMessage.h"
+#include "TestDataMessage.h"
 
 using namespace message_pass;
 
-class TestMessage : virtual public IMultiDataMessage
-{
-public:
-    size_t get_buf_num()
-    {
-        return 0;
-    }
-    size_t get_key()
-    {
-        return 100;
-    }
-    void set_key(std::size_t key) {}
-    void add_buf(size_t size) {}
-    std::pair<void*, std::size_t> operator[](std::size_t) {
-        return std::pair<void*, std::size_t>(nullptr, 0);
-    }
-};
-
 int main(void)
 {
-
-    std::shared_ptr<ConsumerServer<TestMessage>>
-        ps(new ConsumerServer<TestMessage>("0.0.0.0", 9999, "192.168.37.201:9092", {"test"}, 1));
-    std::thread start_thread([&]() {
-        ps->start();
+    std::shared_ptr<ConsumerServer<TestDataMessage>>
+    cs(new ConsumerServer<TestDataMessage>("192.168.37.204", 9999, "192.168.37.201:9092", {"test"}, 1));
+    
+    std::string topic{"test"};
+    std::string source{"centos204"};
+    cs->prepare_sources(topic, {source});
+    std::thread start_thread([=]() {
+        //start 必须在send request之前调用
+        cs->start();
     });
     start_thread.join();
 
-    sleep(500);
-    ps->stop();
+    TestDataMessage* msg;
+    cs->send_get_request(topic);
+
+    while(!cs->get_msg(topic, source, 5000, &msg));
+
+    std::cout << msg->size() << "\n";
+    std::cout << std::string((char*)msg->data()) << "\n";
+
+    sleep(50);
+    cs->stop();
+
+    delete msg;
     return 0;
 }

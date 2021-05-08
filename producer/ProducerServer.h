@@ -19,19 +19,19 @@
 #include <librdkafka/rdkafkacpp.h>
 
 #include "log/log.h"
+#include "utils/utils.h"
 #include "message/RequestMessage.pb.h"
 #include "queue/readerwriterqueue.h"
+#include "message/IDataMessage.h"
 
 namespace message_pass {
-
-class IMultiDataMessage;
 
 static int partition_cnt = 0;
 static int eof_cnt = 0;
 
 template<typename T>
 class ProducerServer {
-    static_assert(std::is_base_of<IMultiDataMessage, T>::value, "template parameter is not derived from IMultiDataMessage");
+    static_assert(std::is_base_of<IDataMessage, T>::value, "template parameter is not derived from IDataMessage");
     public:
         /**
          * @param topic_server
@@ -39,15 +39,32 @@ class ProducerServer {
          * @param send_batch
          * @param io_threads
          */
-        ProducerServer(const std::string& topic_server, const std::vector<std::string>& topics, size_t io_threads);
+        ProducerServer(const std::string& topic_server, const std::vector<std::string>& topics, std::size_t io_threads);
 
         ~ProducerServer();
 
         /**
-         * @param topic
-         * @param msg
+         * @brief Set the fixed recv object
+         * 
+         * @param batch recv batch size
+         * @param size recv every message size
+         */
+        void set_fixed_send(std::size_t batch, std::size_t size);
+
+        /**
+         * @brief 将消息放入队列
+         * 
+         * @param topic 目标topic
+         * @param msg 消息
          */
         void send(const std::string& topic, T* msg);
+
+        /**
+         * @brief 设置producer id，如果不设置则默认使用本机ip，所以最大长度为15
+         * 
+         * @param id 
+         */
+        void set_identity(const std::string& id);
 
         void start();
 
@@ -70,7 +87,13 @@ class ProducerServer {
 
         std::map<std::string, brwQueue<RequestMessage>*> gets_;
         std::map<std::string, brwQueue<RequestMessage>*> del_recovers_;
+        
+        /**
+         * @brief zmq sockets <topic, <sink, void*>>
+         * 
+         */
         std::map<std::string, std::map<std::string, void*>> sockets_;
+
         std::string topic_server_;
         std::vector<std::string> topics_;
         void* zmq_ctx_;
@@ -79,8 +102,11 @@ class ProducerServer {
         boost::thread_group recv_request_threads_;
         boost::thread_group send_msg_threads_;
         boost::thread_group del_recover_msg_threads_;
-
         RdKafka::Conf* kafka_conf_;
+        std::size_t identity_;
+        bool send_fixed_{false};
+        std::size_t fixed_size_;
+        std::size_t fixed_num_;
 
     private:
         void init(const std::vector<std::string>& topics);
@@ -133,7 +159,9 @@ class ProducerServer {
  */
 //template<typename M, typename = IS_DERIVED_FROM_IDATAMESSAGE<M>>
 template<typename T>
-ProducerServer<T>::ProducerServer(const std::string& topic_server, const std::vector<std::string>& topics, size_t io_threads): topic_server_(topic_server), topics_(topics), io_threads_(io_threads) {
+ProducerServer<T>::ProducerServer(const std::string& topic_server, const std::vector<std::string>& topics, std::size_t io_threads)
+    : topic_server_(topic_server), topics_(topics), io_threads_(io_threads), identity_(std::hash<std::string>()(Utils::get_host_ip()))
+{
     init(topics_);
 }
 
@@ -149,9 +177,14 @@ void ProducerServer<T>::init(const std::vector<std::string>& topics) {
         gets_[topic] = new brwQueue<RequestMessage>();
         del_recovers_[topic] = new brwQueue<RequestMessage>();
     }
+
     //initialize zmq
     zmq_ctx_ = zmq_ctx_new();
     zmq_ctx_set(zmq_ctx_, ZMQ_IO_THREADS, io_threads_);
+    for(auto topic : topics) {
+        this->sockets_[topic] = std::map<std::string, void*>();
+    }
+    
     //initialize kafka global conf
     std::string errstr;
     kafka_conf_ = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
@@ -212,6 +245,28 @@ ProducerServer<T>::~ProducerServer() {
     delete kafka_conf_;
 }
 
+/**
+ * @brief Set the fixed recv object
+ * 
+ * @param batch recv batch size
+ * @param size recv every message size
+ */
+template<typename T>
+void ProducerServer<T>::set_fixed_send(std::size_t batch, std::size_t size) {
+    this->send_fixed_ = true;
+    this->fixed_num_ = batch;
+    this->fixed_size_ = size;
+}
+
+/**
+ * @param topic
+ * @param msg
+ */
+template<typename T>
+void ProducerServer<T>::send(const std::string& topic, T* msg) {
+    readys_[topic]->enqueue(msg);
+}
+
 template<typename T>
 void ProducerServer<T>::start() {
     running_ = true;
@@ -229,16 +284,17 @@ void ProducerServer<T>::start() {
     }
 
     //start threads to delete or recover msg
-    LOG_INFO("start thread group to delete or recover msg")
-    for(auto& topic : topics_) {
-        del_recover_msg_threads_.create_thread(std::bind(&ProducerServer::delete_recover, this, topic));
-    }
+    // LOG_INFO("start thread group to delete or recover msg")
+    // for(auto& topic : topics_) {
+    //     del_recover_msg_threads_.create_thread(std::bind(&ProducerServer::delete_recover, this, topic));
+    // }
 
     LOG_INFO("start thread group compelte");
 }
 
 template<typename T>
 void ProducerServer<T>::stop() {
+    running_ = false;
     LOG_INFO("stop thread group to recv requst");
     recv_request_threads_.join_all();
     LOG_INFO("stop thread group to send msg")
@@ -246,23 +302,22 @@ void ProducerServer<T>::stop() {
     LOG_INFO("start thread group to delete or recover msg")
     del_recover_msg_threads_.join_all();
     LOG_INFO("stop thread group compelte");
-    running_ = false;
 }
 
 template<typename T>
 void ProducerServer<T>::delete_recover(const std::string& topic) {
-    LOG_INFO("start delete or recover thread for topic " + topic);
+    LOG_INFO("start deleting or recovering thread for topic " + topic);
     auto del_recover = del_recovers_[topic];
     auto sent = sents_[topic];
     RequestMessage rmsg;
     while(running_) {
         if(!del_recover->wait_dequeue_timed(rmsg, std::chrono::milliseconds(50))) {
-            LOG_INFO("no del or recover request in queue");
             continue;
         }
-        if(rmsg.cmd() == RequestMessage::CMD::RequestMessage_CMD_GET){
+        LOG_INFO("get a del or recover request in queue");
+        auto sents_sink = sent[rmsg.sink()];
+        if(rmsg.cmd() == RequestMessage::CMD::RequestMessage_CMD_DEL){
             //delete msg
-            auto sents_sink = sent[rmsg.sink()];
             auto it = sents_sink->begin();
             for(;it != sents_sink->end(); ++it) {
                 if((*it)->get_key() == rmsg.key()) {
@@ -273,8 +328,8 @@ void ProducerServer<T>::delete_recover(const std::string& topic) {
             }
         } else {
             //recover msg
-            auto sents_sink = sent[rmsg.sink()];
             if(sents_sink->empty()) {
+                LOG_DETAIL_INFO("");
                 continue;
             }
             void* socket = zmq_socket(zmq_ctx_, ZMQ_DEALER);
@@ -301,15 +356,21 @@ void ProducerServer<T>::recv_request(const std::string& topic) {
     consumer->subscribe({topic});
     while(running_) {
         RdKafka::Message* msg = consumer->consume(500);
+        if(msg == NULL) {
+            continue;
+        }
         switch (msg->err()) {
             case RdKafka::ERR__TIMED_OUT: {
-                LOG_INFO("consume time out");
+                // LOG_INFO("consume time out");
                 break;
             }
             case RdKafka::ERR_NO_ERROR: {
                 RequestMessage rmsg;
-                rmsg.ParseFromString(static_cast<char*>(msg->payload()));                
-                if(rmsg.cmd() == RequestMessage::CMD::RequestMessage_CMD_GET) {
+                if(!rmsg.ParseFromString(static_cast<char*>(msg->payload()))) {
+                    LOG_ERROR("parse protobuf from a string failed");
+                    continue;
+                }
+                if(rmsg.cmd() == RequestMessage_CMD_GET) {
                     if(!get->enqueue(rmsg)) {
                         LOG_ERROR("get request enqueue failed");
                     }
@@ -343,7 +404,7 @@ void ProducerServer<T>::recv_request(const std::string& topic) {
 
 template<typename T>
 void ProducerServer<T>::send_msg(const std::string& topic) {
-    LOG_INFO("start send message thread for topic " + topic);
+    LOG_INFO("start sending message for topic " + topic);
     auto sockets = sockets_[topic];
     brwQueue<RequestMessage>* gets = gets_[topic];
     auto ready = readys_[topic];
@@ -352,7 +413,7 @@ void ProducerServer<T>::send_msg(const std::string& topic) {
     RequestMessage req;
     while(running_) {
         //use timed to prevent hanging
-        if(!gets->wait_dequeue_timed(req, std::chrono::milliseconds(50))){
+        if(!gets->wait_dequeue_timed(req, std::chrono::milliseconds(50))) {
             continue;
         }
         //send message with zmq to req address
@@ -364,9 +425,13 @@ void ProducerServer<T>::send_msg(const std::string& topic) {
         void* socket;
         if(it == sockets.end()) {
             socket = zmq_socket (zmq_ctx_, ZMQ_DEALER);
+            zmq_setsockopt(socket, ZMQ_ROUTING_ID, &this->identity_, sizeof(this->identity_));
             sockets[req.sink()] = socket;
             sent[req.sink()] = new std::list<T*>();
-            zmq_connect(socket, req.sink().c_str());
+            int rc = zmq_connect(socket, req.sink().c_str());
+            assert(rc == 0);
+
+            LOG_INFO("initialized a zmq socket for sink: " + req.sink());
         } else {
             socket = it->second;
         }
@@ -377,31 +442,29 @@ void ProducerServer<T>::send_msg(const std::string& topic) {
 }
 
 /**
- * @param topic
- * @param msg
- */
-template<typename T>
-void ProducerServer<T>::send(const std::string& topic, T* msg) {
-    readys_[topic].enqueue(msg);
-}
-
-/**
- * @param sink
+ * @param socket
  * @param msg
  */
 template<typename T>
 void ProducerServer<T>::do_send(void* socket, T* msg) {
-    size_t n = msg->get_buf_num();
-    if(n > 1) {
-        for(std::size_t i = 0; i < n - 1; i++) {
-            zmq_send_const(socket, (*msg)[i].first, (*msg)[i].second, ZMQ_SNDMORE);
-        }
-        zmq_send_const(socket, (*msg)[n-1].first, (*msg)[n-1].second, 0);
-    } else if (n == 1) {
-        zmq_send_const(socket, (*msg)[0].first, (*msg)[0].second, ZMQ_DONTWAIT);
-    } else {
+    if(this->send_fixed_) {
+        zmq_send_const(socket, msg->const_data(), this->fixed_size_, ZMQ_DONTWAIT);
         return;
     }
+    std::size_t size = msg->size();
+    zmq_send(socket, &size, 8, ZMQ_SNDMORE);
+    zmq_send(socket, msg->const_data(), size, ZMQ_DONTWAIT);
+    LOG_INFO((char*)msg->data());
+}
+
+/**
+ * @brief 设置producer id，如果不设置则默认使用本机ip，所以最大长度为15
+ * 
+ * @param id 
+ */
+template<typename T>
+void ProducerServer<T>::set_identity(const std::string& id) {
+    this->identity_ = std::hash<std::string>()(id);
 }
 
 }
