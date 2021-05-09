@@ -179,13 +179,14 @@ class ConsumerServer {
         uint16_t low_water_marker_;
         RdKafka::Conf *kafka_conf_;
         boost::thread_group recv_message_threads_;
-        boost::thread_group send_request_threads_;
+        // boost::thread_group send_request_threads_;
         std::map<std::string, RdKafka::Producer*> producers_;
-        bool recv_fixed_;
+        bool recv_fixed_{false};
         std::size_t fixed_size_;
         std::size_t fixed_num_;
         std::map<std::string, std::string> topic_sink_;
 
+        std::shared_ptr<spdlog::logger> logger_;
 
         void init(const std::vector<std::string>& topics);
 
@@ -197,14 +198,17 @@ class ConsumerServer {
         void do_send_request();
 
         class KafkaDeliveryReportCb : public RdKafka::DeliveryReportCb {
+            private:
+                std::shared_ptr<spdlog::logger> logger_;
             public:
+                KafkaDeliveryReportCb(std::shared_ptr<spdlog::logger> logger): logger_(logger) {}
                 void dr_cb(RdKafka::Message &message) {
                     /* If message.err() is non-zero the message delivery failed permanently
                     * for the message. */
                     if (message.err()) {
-                        LOG_ERROR("Message delivery failed: " + message.errstr());
+                        logger_->error("message delivery failed: " + message.errstr());
                     } else {
-                        LOG_INFO("Message delivered to topic " + message.topic_name());
+                        logger_->info("message delivered to topic " + message.topic_name());
                     }
                 }
 
@@ -224,8 +228,16 @@ class ConsumerServer {
  * @param io_threads
  */
 template<typename T>
-ConsumerServer<T>::ConsumerServer(const std::string& server_ip, int server_port, const std::string& topic_server, const std::vector<std::string>& topics, std::size_t io_threads)
-    : server_ip_(server_ip), server_port_(server_port), topics_(topics), topic_server_(topic_server), io_threads_(io_threads) {
+ConsumerServer<T>::ConsumerServer(const std::string& server_ip, int server_port, 
+                                const std::string& topic_server, 
+                                const std::vector<std::string>& topics, 
+                                std::size_t io_threads)
+    : server_ip_(server_ip), server_port_(server_port), 
+    topics_(topics), topic_server_(topic_server), 
+    io_threads_(io_threads), 
+    logger_(MessageLogger::get_logger("ConsumerServer")),
+    kafka_cb_(this->logger_)
+{
     init(topics_);
 }
 
@@ -261,18 +273,23 @@ void ConsumerServer<T>::init(const std::vector<std::string>& topics) {
     std::string errstr;
     kafka_conf_ = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
     if(kafka_conf_->set("bootstrap.servers", topic_server_, errstr) != RdKafka::Conf::CONF_OK) {
-        LOG_ERROR(errstr);
+        logger_->error(errstr);
         exit(1);
     }
     if (kafka_conf_->set("dr_cb", &kafka_cb_, errstr) != RdKafka::Conf::CONF_OK) {
-        LOG_ERROR(errstr);
+        logger_->error(errstr);
         exit(1);
     }
+    //metrics
+    // if(kafka_conf_->set("statistics.interval.ms", "5000", errstr) != RdKafka::Conf::CONF_OK) {
+    //     logger_->error(errstr);
+    //     exit(1);
+    // }
     //initialize kafka producer
     for(auto topic : topics) {
         auto producer = RdKafka::Producer::create(kafka_conf_, errstr);
         if(producer == NULL) {
-            LOG_ERROR(errstr);
+            logger_->error(errstr);
             exit(-1);
         }
         producers_[topic] = producer;
@@ -304,7 +321,7 @@ void ConsumerServer<T>::send_request(const std::string& topic, const RequestMess
     auto producer = producers_[topic];
     std::string str_rmsg;
     rmsg.SerializeToString(&str_rmsg);
-    LOG_INFO("send request: " + str_rmsg);
+    logger_->info("send request: " + str_rmsg);
 retry:
     RdKafka::ErrorCode err = producer->produce(
                                     topic,
@@ -323,7 +340,7 @@ retry:
     if (err != RdKafka::ERR_NO_ERROR) {
         std::string error_msg{"Failed to produce to topic "};
         error_msg.append(topic).append(": ").append(RdKafka::err2str(err));
-        LOG_ERROR(error_msg);
+        logger_->error(error_msg);
         if (err == RdKafka::ERR__QUEUE_FULL) {
             /* If the internal queue is full, wait for
             * messages to be delivered and then retry.
@@ -339,7 +356,7 @@ retry:
             goto retry;
         }
     } else {
-        LOG_INFO("enqueued reuqest message for topic " + topic);
+        logger_->info("enqueued reuqest message for topic " + topic);
     }
 
     /* A producer application should continually serve
@@ -549,15 +566,15 @@ void ConsumerServer<T>::start() {
     running_ = true;
     //every topic has a thread
     //start threads to recv requst
-    LOG_INFO("start thread group to recv message")
+    logger_->info("start thread group to recv message");
     for(auto topic : this->topics_) {
         recv_message_threads_.create_thread(std::bind(&ConsumerServer::recv_message, this, topic));
     }
 
-    LOG_INFO("start thread group compelte");
+    logger_->info("start thread group compelte");
 
     //启动时先发送recover确保不丢数据
-    // LOG_INFO("send recover request");
+    // logger_->info("send recover request");
     // for(int i = 0; i < topics_.size(); i++) {
     //     this->send_recover_request(topics_[i]);
     // }
@@ -565,12 +582,22 @@ void ConsumerServer<T>::start() {
 
 template<typename T>
 void ConsumerServer<T>::stop() {
+    /* Wait for final messages to be delivered or fail.
+    * flush() is an abstraction over poll() which
+    * waits for all messages to be delivered. */
+    for(auto producer_pair : this->producers_) {
+        logger_->info("Flushing final messages...");
+        producer_pair.second->flush(10*1000 /* wait for max 10 seconds */);
+        
+        if (producer_pair.second->outq_len() > 0) {
+            logger_->error(std::to_string(producer_pair.second->outq_len()) + " message(s) were not delivered");
+        }
+    }
+
     running_ = false;
-    LOG_INFO("stop thread group to send request")
-    send_request_threads_.join_all();
-    LOG_INFO("stop thread group to recv message")
+    logger_->info("stop thread group to recv message");
     recv_message_threads_.join_all();
-    LOG_INFO("stop thread group compelte");
+    logger_->info("stop thread group compelte");
 }
 
 /**
@@ -590,9 +617,11 @@ void ConsumerServer<T>::set_auto_request(bool auto_req, uint16_t low_water_marke
  */
 template<typename T>
 void ConsumerServer<T>::recv_message(const std::string& topic) {
+    logger_->info("start a thread to recv message for topic: " + topic);
     auto recv_queues = recvs_[topic];
-    void* socket = zmq_socket(zmq_ctx_, ZMQ_ROUTER);
-    std::size_t recv_timeout = 500;
+    thread_local void* socket = zmq_socket(zmq_ctx_, ZMQ_ROUTER);
+    //ZMQ_RCVTIMEO must be int
+    int recv_timeout = 50;
     //设置接收超时时间
     zmq_setsockopt(socket, ZMQ_RCVTIMEO, &recv_timeout, sizeof(recv_timeout));
     int rc = zmq_bind(socket, topic_sink_[topic].c_str());
@@ -626,7 +655,7 @@ void ConsumerServer<T>::recv_message(const std::string& topic) {
             if(n_bytes == -1) {
                 continue;
             }
-            LOG_INFO("get message from: " + std::to_string(source));
+            // logger_->info("get message from: " + std::to_string(source));
 
             //recv message size
             std::size_t size = 0;
@@ -634,7 +663,7 @@ void ConsumerServer<T>::recv_message(const std::string& topic) {
                 n_bytes = zmq_recv(socket, &size, 8, ZMQ_RCVMORE);
             } while (n_bytes == -1 && running_);
 
-            // LOG_INFO("message len: " + std::to_string(size));
+            // logger_->info("message len: " + std::to_string(size));
 
             if(n_bytes == -1) {
                 break;
@@ -651,13 +680,12 @@ void ConsumerServer<T>::recv_message(const std::string& topic) {
             if(n_bytes == -1) {
                 break;
             }
-            // LOG_INFO(msg->size());
-            // LOG_INFO((char*)msg->data());
             recv_queues[source]->enqueue(msg);
         }
     }
 
     zmq_close(socket);
+    logger_->info("stop a thread to recv message for topic: " + topic);
 }
 
 }

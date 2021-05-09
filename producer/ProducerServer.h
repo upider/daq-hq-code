@@ -87,12 +87,6 @@ class ProducerServer {
 
         std::map<std::string, brwQueue<RequestMessage>*> gets_;
         std::map<std::string, brwQueue<RequestMessage>*> del_recovers_;
-        
-        /**
-         * @brief zmq sockets <topic, <sink, void*>>
-         * 
-         */
-        std::map<std::string, std::map<std::string, void*>> sockets_;
 
         std::string topic_server_;
         std::vector<std::string> topics_;
@@ -108,6 +102,8 @@ class ProducerServer {
         std::size_t fixed_size_;
         std::size_t fixed_num_;
 
+        std::shared_ptr<spdlog::logger> logger_;
+
     private:
         void init(const std::vector<std::string>& topics);
 
@@ -122,29 +118,32 @@ class ProducerServer {
         void delete_recover(const std::string& topic);
 
         void recv_request(const std::string& topic);
-
+        
         class KafkaEventCb : public RdKafka::EventCb {
+            private:
+                std::shared_ptr<spdlog::logger> logger_;
             public:
+                KafkaEventCb(std::shared_ptr<spdlog::logger> logger): logger_(logger) {}
                 void event_cb (RdKafka::Event &event) {
                     switch (event.type()) {
                     case RdKafka::Event::EVENT_ERROR: {
-                        LOG_ERROR(RdKafka::err2str(event.err()));
+                        logger_->error(RdKafka::err2str(event.err()));
                         break;
                     }
                     case RdKafka::Event::EVENT_STATS: {
-                        LOG_ERROR(event.str());
+                        logger_->error(event.str());
                         break;
                     }
                     case RdKafka::Event::EVENT_LOG: {
-                        LOG_INFO(event.str());
+                        logger_->error(event.str());
                         break;
                     }
                     case RdKafka::Event::EVENT_THROTTLE: {
-                        LOG_ERROR("THROTTLED");
+                        logger_->error("THROTTLED");
                         break;
                     }
                     default:
-                        LOG_INFO(event.str());
+                        logger_->info(event.str());
                     }
                 }
         };
@@ -159,8 +158,14 @@ class ProducerServer {
  */
 //template<typename M, typename = IS_DERIVED_FROM_IDATAMESSAGE<M>>
 template<typename T>
-ProducerServer<T>::ProducerServer(const std::string& topic_server, const std::vector<std::string>& topics, std::size_t io_threads)
-    : topic_server_(topic_server), topics_(topics), io_threads_(io_threads), identity_(std::hash<std::string>()(Utils::get_host_ip()))
+ProducerServer<T>::ProducerServer(const std::string& topic_server, 
+                                const std::vector<std::string>& topics, 
+                                std::size_t io_threads)
+    : topic_server_(topic_server), topics_(topics), 
+    io_threads_(io_threads), 
+    identity_(std::hash<std::string>()(Utils::get_host_ip())), 
+    logger_(MessageLogger::get_logger("ProducerServer")),
+    kafka_event_cb_(this->logger_)
 {
     init(topics_);
 }
@@ -181,15 +186,17 @@ void ProducerServer<T>::init(const std::vector<std::string>& topics) {
     //initialize zmq
     zmq_ctx_ = zmq_ctx_new();
     zmq_ctx_set(zmq_ctx_, ZMQ_IO_THREADS, io_threads_);
-    for(auto topic : topics) {
-        this->sockets_[topic] = std::map<std::string, void*>();
-    }
     
     //initialize kafka global conf
     std::string errstr;
     kafka_conf_ = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
     if(kafka_conf_->set("enable.partition.eof", "true", errstr) != RdKafka::Conf::CONF_OK) {
-        LOG_ERROR(errstr);
+        logger_->error(errstr);
+        exit(1);
+    }
+    //callback
+    if(kafka_conf_->set("event_cb", &this->kafka_event_cb_, errstr) != RdKafka::Conf::CONF_OK) {
+        logger_->error(errstr);
         exit(1);
     }
     //group.id=hostname+pid
@@ -198,18 +205,19 @@ void ProducerServer<T>::init(const std::vector<std::string>& topics) {
     gethostname(name, len);
     pid_t pid = getpid();
     auto group_id = std::string(name) + "-" + std::to_string(pid);
-    LOG_INFO("group id = " + group_id);
-    if (kafka_conf_->set("group.id",  name, errstr) != RdKafka::Conf::CONF_OK) {
-        LOG_ERROR(errstr);
+    logger_->info("group id = " + group_id);
+    if(kafka_conf_->set("group.id",  name, errstr) != RdKafka::Conf::CONF_OK) {
+        logger_->error(errstr);
         exit(1);
     }
     delete[] name;
-    if (kafka_conf_->set("statistics.interval.ms", "50", errstr) != RdKafka::Conf::CONF_OK) {
-        LOG_ERROR(errstr);
-        exit(1);
-    }
+    //metrics
+    // if(kafka_conf_->set("statistics.interval.ms", "5000", errstr) != RdKafka::Conf::CONF_OK) {
+    //     logger_->error(errstr);
+    //     exit(1);
+    // }
     if(kafka_conf_->set("metadata.broker.list", topic_server_, errstr)) {
-        LOG_ERROR(errstr);
+        logger_->error(errstr);
         exit(1);
     }
 }
@@ -217,13 +225,7 @@ void ProducerServer<T>::init(const std::vector<std::string>& topics) {
 template<typename T>
 ProducerServer<T>::~ProducerServer() {
     //destroy zmq
-    for(auto sockets : sockets_) {
-        for(auto socket : sockets.second) {
-            zmq_close(socket.second);
-        }
-    }
     zmq_ctx_destroy(zmq_ctx_);
-
     //destroy queues
     //TODO: delete elements in queue
     for(auto queue : readys_) {
@@ -272,41 +274,41 @@ void ProducerServer<T>::start() {
     running_ = true;
     //every topic has a thread
     //start threads to recv requst
-    LOG_INFO("start thread group to recv requst")
+    logger_->info("start thread group to recv requst");
     for(auto& topic : topics_) {
         recv_request_threads_.create_thread(std::bind(&ProducerServer::recv_request, this, topic));
     }
 
     //start threads to send msg
-    LOG_INFO("start thread group to send msg")
+    logger_->info("start thread group to send msg");
     for(auto& topic : topics_) {
         send_msg_threads_.create_thread(std::bind(&ProducerServer::send_msg, this, topic));
     }
 
     //start threads to delete or recover msg
-    // LOG_INFO("start thread group to delete or recover msg")
+    // logger_->info("start thread group to delete or recover msg")
     // for(auto& topic : topics_) {
     //     del_recover_msg_threads_.create_thread(std::bind(&ProducerServer::delete_recover, this, topic));
     // }
 
-    LOG_INFO("start thread group compelte");
+    logger_->info("start thread group compelte");
 }
 
 template<typename T>
 void ProducerServer<T>::stop() {
     running_ = false;
-    LOG_INFO("stop thread group to recv requst");
+    logger_->info("stop thread group to recv requst");
     recv_request_threads_.join_all();
-    LOG_INFO("stop thread group to send msg")
+    logger_->info("stop thread group to send msg");
     send_msg_threads_.join_all();
-    LOG_INFO("start thread group to delete or recover msg")
-    del_recover_msg_threads_.join_all();
-    LOG_INFO("stop thread group compelte");
+    // logger_->info("start thread group to delete or recover msg")
+    // del_recover_msg_threads_.join_all();
+    logger_->info("stop thread group compelte");
 }
 
 template<typename T>
 void ProducerServer<T>::delete_recover(const std::string& topic) {
-    LOG_INFO("start deleting or recovering thread for topic " + topic);
+    logger_->info("start deleting or recovering thread for topic " + topic);
     auto del_recover = del_recovers_[topic];
     auto sent = sents_[topic];
     RequestMessage rmsg;
@@ -314,7 +316,7 @@ void ProducerServer<T>::delete_recover(const std::string& topic) {
         if(!del_recover->wait_dequeue_timed(rmsg, std::chrono::milliseconds(50))) {
             continue;
         }
-        LOG_INFO("get a del or recover request in queue");
+        logger_->info("get a del or recover request in queue");
         auto sents_sink = sent[rmsg.sink()];
         if(rmsg.cmd() == RequestMessage::CMD::RequestMessage_CMD_DEL){
             //delete msg
@@ -329,7 +331,6 @@ void ProducerServer<T>::delete_recover(const std::string& topic) {
         } else {
             //recover msg
             if(sents_sink->empty()) {
-                LOG_DETAIL_INFO("");
                 continue;
             }
             void* socket = zmq_socket(zmq_ctx_, ZMQ_DEALER);
@@ -339,18 +340,18 @@ void ProducerServer<T>::delete_recover(const std::string& topic) {
             }
         }
     }
-    LOG_INFO("stop delete or recover thread for topic " + topic);
+    logger_->info("stop delete or recover thread for topic " + topic);
 }
 
 template<typename T>
 void ProducerServer<T>::recv_request(const std::string& topic) {
-    LOG_INFO("start recv request thread for topic " + topic);
+    logger_->info("start recv request thread for topic " + topic);
     auto get = gets_[topic];
     auto del_recover = del_recovers_[topic];
     std::string errstr;
     RdKafka::KafkaConsumer* consumer = RdKafka::KafkaConsumer::create(kafka_conf_, errstr);
     if (!consumer) {
-        LOG_ERROR(errstr)
+        logger_->error(errstr);
         exit(-1);
     }
     consumer->subscribe({topic});
@@ -359,38 +360,40 @@ void ProducerServer<T>::recv_request(const std::string& topic) {
         if(msg == NULL) {
             continue;
         }
+        consumer->commitAsync();
+
         switch (msg->err()) {
             case RdKafka::ERR__TIMED_OUT: {
-                // LOG_INFO("consume time out");
+                // logger_->info("consume time out");
                 break;
             }
             case RdKafka::ERR_NO_ERROR: {
                 RequestMessage rmsg;
                 if(!rmsg.ParseFromString(static_cast<char*>(msg->payload()))) {
-                    LOG_ERROR("parse protobuf from a string failed");
+                    logger_->error("parse protobuf from a string failed");
                     continue;
                 }
                 if(rmsg.cmd() == RequestMessage_CMD_GET) {
                     if(!get->enqueue(rmsg)) {
-                        LOG_ERROR("get request enqueue failed");
+                        logger_->error("get request enqueue failed");
                     }
                 } else {
                     if(!del_recover->enqueue(rmsg)) {
-                        LOG_ERROR("recover request enqueue failed");
+                        logger_->error("recover request enqueue failed");
                     }
                 }
                 break;
             }
             case RdKafka::ERR__UNKNOWN_TOPIC: {
-                LOG_ERROR("no such topic");
+                logger_->error("no such topic");
                 break;
             }
             case RdKafka::ERR__UNKNOWN_PARTITION: {
-                LOG_ERROR("no such partition");
+                logger_->error("no such partition");
                 break;
             }
             default: {
-                LOG_WARN(msg->errstr());
+                logger_->warn(msg->errstr());
                 break;
             }
         }
@@ -399,13 +402,13 @@ void ProducerServer<T>::recv_request(const std::string& topic) {
     }
     consumer->close();
     delete consumer;
-    LOG_INFO("stop recv request thread for topic " + topic);
+    logger_->info("stop recv request thread for topic " + topic);
 }
 
 template<typename T>
 void ProducerServer<T>::send_msg(const std::string& topic) {
-    LOG_INFO("start sending message for topic " + topic);
-    auto sockets = sockets_[topic];
+    logger_->info("start sending message for topic " + topic);
+    thread_local std::map<std::__cxx11::string, void *> thread_local_sockets;
     brwQueue<RequestMessage>* gets = gets_[topic];
     auto ready = readys_[topic];
     auto sent = sents_[topic];
@@ -421,24 +424,27 @@ void ProducerServer<T>::send_msg(const std::string& topic) {
         while(!ready->wait_dequeue_timed(msg, std::chrono::milliseconds(50)) && running_){
             continue;
         }
-        auto it = sockets.find(req.sink());
+        auto it = thread_local_sockets.find(req.sink());
         void* socket;
-        if(it == sockets.end()) {
+        if(it == thread_local_sockets.end()) {
             socket = zmq_socket (zmq_ctx_, ZMQ_DEALER);
             zmq_setsockopt(socket, ZMQ_ROUTING_ID, &this->identity_, sizeof(this->identity_));
-            sockets[req.sink()] = socket;
+            thread_local_sockets[req.sink()] = socket;
             sent[req.sink()] = new std::list<T*>();
             int rc = zmq_connect(socket, req.sink().c_str());
             assert(rc == 0);
 
-            LOG_INFO("initialized a zmq socket for sink: " + req.sink());
+            logger_->info("initialized a zmq socket for sink: " + req.sink());
         } else {
             socket = it->second;
         }
         do_send(socket, msg);
         sent[req.sink()]->push_back(msg);
     }
-    LOG_INFO("stop send message thread for topic " + topic);
+    for(auto pair_socket : thread_local_sockets) {
+        zmq_close(pair_socket.second);
+    }
+    logger_->info("stop send message thread for topic " + topic);
 }
 
 /**
@@ -454,7 +460,6 @@ void ProducerServer<T>::do_send(void* socket, T* msg) {
     std::size_t size = msg->size();
     zmq_send(socket, &size, 8, ZMQ_SNDMORE);
     zmq_send(socket, msg->const_data(), size, ZMQ_DONTWAIT);
-    LOG_INFO((char*)msg->data());
 }
 
 /**
