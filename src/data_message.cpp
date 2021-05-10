@@ -1,4 +1,4 @@
-#include "message/IDataMessage.h"
+#include "message/data_message.h"
 
 namespace message_pass
 {

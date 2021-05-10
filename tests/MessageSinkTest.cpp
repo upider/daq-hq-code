@@ -1,14 +1,14 @@
-#include "consumer/ConsumerServer.h"
-#include "message/IDataMessage.h"
+#include "message_sink/message_sink.h"
 #include "TestDataMessage.h"
 
 using namespace message_pass;
 
 int main(void)
 {
-    std::shared_ptr<ConsumerServer<TestDataMessage>>
-    cs(new ConsumerServer<TestDataMessage>("192.168.37.204", 9999, "192.168.37.201:9092", {"test"}, 1));
-    
+    std::shared_ptr<MessageSink<TestDataMessage>>
+            cs(new MessageSink<TestDataMessage>("192.168.37.204", 9999,
+                    "192.168.37.201:9092", {"test"}, 1));
+
     std::string topic{"test"};
     std::string source{"centos204"};
     cs->prepare_sources(topic, {source});

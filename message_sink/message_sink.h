@@ -2,8 +2,8 @@
  * Project Message Passing
  */
 
-#ifndef _CONSUMERSERVER_H
-#define _CONSUMERSERVER_H
+#ifndef _MESSAGESINK_H
+#define _MESSAGESINK_H
 
 #include <string>
 #include <vector>
@@ -14,15 +14,15 @@
 #include <librdkafka/rdkafkacpp.h>
 
 #include "log/log.h"
-#include "message/RequestMessage.pb.h"
+#include "message/request_message.pb.h"
 #include "queue/readerwriterqueue.h"
-#include "message/IDataMessage.h"
+#include "message/data_message.h"
 
 namespace message_pass {
 
 template<typename T>
-class ConsumerServer {
-    static_assert(std::is_base_of<IDataMessage, T>::value, "template parameter is not derived from IDataMessage");
+class MessageSink {
+        static_assert(std::is_base_of<IDataMessage, T>::value, "template parameter is not derived from IDataMessage");
     public:
 
         /**
@@ -31,9 +31,9 @@ class ConsumerServer {
          * @param topic_server kafka 地址
          * @param io_threads 处理io线程数
          */
-        ConsumerServer(const std::string& server_ip, int server_port,  const std::string& topic_server, const std::vector<std::string>& topics, std::size_t io_threads);
+        MessageSink(const std::string& server_ip, int server_port,  const std::string& topic_server, const std::vector<std::string>& topics, std::size_t io_threads);
 
-        ~ConsumerServer();
+        ~MessageSink();
 
         /**
          * @brief set sources for a topic before start
@@ -45,7 +45,7 @@ class ConsumerServer {
 
         /**
          * @brief 发送request
-         * 
+         *
          * @param topic 目标topic
          * @param req RequestMessage
          */
@@ -53,7 +53,7 @@ class ConsumerServer {
 
         /**
          * @brief 发送get request
-         * 
+         *
          * @param topic 目标topic
          * @param num 发送请求个数
          */
@@ -61,14 +61,14 @@ class ConsumerServer {
 
         /**
          * @brief 发送恢复请求
-         * 
+         *
          * @param topic 目标topic
          */
         void send_recover_request(const std::string& topic);
 
         /**
          * @brief 发送删除请求
-         * 
+         *
          * @param topic 目标topic
          * @param keys 要删除数据的keys
          */
@@ -76,7 +76,7 @@ class ConsumerServer {
 
         /**
          * @brief 发送删除请求
-         * 
+         *
          * @param topic 目标topic
          * @param key 要删除数据的key
          */
@@ -84,15 +84,15 @@ class ConsumerServer {
 
         /**
          * @brief 发送删除请求
-         * 
+         *
          * @param topic 目标topic
          * @param msg 要删除的数据
          */
         void send_del_request(const std::string& topic, IDataMessage& msg);
-        
+
         /**
          * @brief 发送删除请求
-         * 
+         *
          * @param topic 目标topic
          * @param msg 要删除的数据
          */
@@ -101,7 +101,7 @@ class ConsumerServer {
         /**
          * @brief 轮询从对应topic的不同source中获取消息，每个source等待时间time，如果超时则从下一个source获取
          *        轮询一遍后都没有消息那么返回false
-         * 
+         *
          * @param topic 目标topic
          * @param msg message
          * @param milliseconds_timeout 获取每个source的message的超时时间
@@ -113,7 +113,7 @@ class ConsumerServer {
 
         /**
          * @brief 从topic的source获取message
-         * 
+         *
          * @param topic 目标topic
          * @param source source
          * @param milliseconds_timeout 超时时间
@@ -125,7 +125,7 @@ class ConsumerServer {
 
         /**
          * @brief 对topic的对应每个source获取一个message
-         * 
+         *
          * @param topic 目标topic
          * @param sources source数组
          * @param milliseconds_timeout 每个source等待的超时时间
@@ -136,7 +136,7 @@ class ConsumerServer {
 
         /**
          * @brief Set the fixed recv object
-         * 
+         *
          * @param batch recv batch size
          * @param size recv every message size
          */
@@ -162,11 +162,11 @@ class ConsumerServer {
         std::map<std::string, std::map<std::size_t, brwQueue<T*>*>> recvs_;
 
         /**
-         * ConsumerServer IP
+         * MessageSink IP
          */
         std::string server_ip_;
         /**
-         * ConsumerServer Port
+         * MessageSink Port
          */
         int server_port_;
 
@@ -218,7 +218,7 @@ class ConsumerServer {
 };
 
 /**
- * @brief Construct a new Consumer Server< T>:: Consumer Server object
+ * @brief Construct a new MessageSink<T>::MessageSink object
  *
  * @tparam T
  * @param server_ip
@@ -228,21 +228,21 @@ class ConsumerServer {
  * @param io_threads
  */
 template<typename T>
-ConsumerServer<T>::ConsumerServer(const std::string& server_ip, int server_port, 
-                                const std::string& topic_server, 
-                                const std::vector<std::string>& topics, 
-                                std::size_t io_threads)
-    : server_ip_(server_ip), server_port_(server_port), 
-    topics_(topics), topic_server_(topic_server), 
-    io_threads_(io_threads), 
-    logger_(MessageLogger::get_logger("ConsumerServer")),
-    kafka_cb_(this->logger_)
+MessageSink<T>::MessageSink(const std::string& server_ip, int server_port,
+                            const std::string& topic_server,
+                            const std::vector<std::string>& topics,
+                            std::size_t io_threads)
+    : server_ip_(server_ip), server_port_(server_port),
+      topics_(topics), topic_server_(topic_server),
+      io_threads_(io_threads),
+      logger_(MessageLogger::get_logger("MessageSink")),
+      kafka_cb_(this->logger_)
 {
     init(topics_);
 }
 
 template<typename T>
-ConsumerServer<T>::~ConsumerServer() {
+MessageSink<T>::~MessageSink() {
     //destroy zmq
     zmq_ctx_destroy(zmq_ctx_);
     //TODO: delete element in queue
@@ -260,7 +260,7 @@ ConsumerServer<T>::~ConsumerServer() {
 }
 
 template<typename T>
-void ConsumerServer<T>::init(const std::vector<std::string>& topics) {
+void MessageSink<T>::init(const std::vector<std::string>& topics) {
     //initialize queues
     for(std::size_t i = 0; i < topics.size(); i++) {
         recvs_[topics[i]] = std::map<std::size_t, brwQueue<T*>*>();
@@ -303,39 +303,39 @@ void ConsumerServer<T>::init(const std::vector<std::string>& topics) {
  * @param sources addresses which send messages to this topic
  */
 template<typename T>
-void ConsumerServer<T>::prepare_sources(const std::string& topic, const std::vector<std::string>& sources) {
+void MessageSink<T>::prepare_sources(const std::string& topic, const std::vector<std::string>& sources) {
     for(auto source : sources) {
         recvs_[topic][std::hash<std::string>()(source)] = new brwQueue<T*>();
     }
 }
 
 /**
- * @brief 
- * 
- * @tparam T 
- * @param topic 
- * @param rmsg 
+ * @brief
+ *
+ * @tparam T
+ * @param topic
+ * @param rmsg
  */
 template<typename T>
-void ConsumerServer<T>::send_request(const std::string& topic, const RequestMessage& rmsg) {
+void MessageSink<T>::send_request(const std::string& topic, const RequestMessage& rmsg) {
     auto producer = producers_[topic];
     std::string str_rmsg;
     rmsg.SerializeToString(&str_rmsg);
     logger_->info("send request: " + str_rmsg);
 retry:
     RdKafka::ErrorCode err = producer->produce(
-                                    topic,
-                                    RdKafka::Topic::PARTITION_UA,
-                                    RdKafka::Producer::RK_MSG_COPY,
-                                    /* Value */
-                                    const_cast<char *>(str_rmsg.c_str()), str_rmsg.size(),
-                                    /* Key */
-                                    NULL, 0,
-                                    /* Timestamp (defaults to current time) */
-                                    0,
-                                    /* Per-message opaque value passed to
-                                    * delivery report */
-                                    NULL);
+                                 topic,
+                                 RdKafka::Topic::PARTITION_UA,
+                                 RdKafka::Producer::RK_MSG_COPY,
+                                 /* Value */
+                                 const_cast<char *>(str_rmsg.c_str()), str_rmsg.size(),
+                                 /* Key */
+                                 NULL, 0,
+                                 /* Timestamp (defaults to current time) */
+                                 0,
+                                 /* Per-message opaque value passed to
+                                 * delivery report */
+                                 NULL);
 
     if (err != RdKafka::ERR_NO_ERROR) {
         std::string error_msg{"Failed to produce to topic "};
@@ -374,12 +374,12 @@ retry:
 
 /**
  * @brief 发送get request
- * 
+ *
  * @param topic 目标topic
  * @param num 发送请求个数
  */
 template<typename T>
-void ConsumerServer<T>::send_get_request(const std::string& topic, std::size_t num) {
+void MessageSink<T>::send_get_request(const std::string& topic, std::size_t num) {
     for (size_t i = 0; i < num; i++) {
         RequestMessage get_request;
         get_request.set_cmd(RequestMessage_CMD_GET);
@@ -390,11 +390,11 @@ void ConsumerServer<T>::send_get_request(const std::string& topic, std::size_t n
 
 /**
  * @brief 发送恢复请求
- * 
+ *
  * @param topic 目标topic
  */
 template<typename T>
-void ConsumerServer<T>::send_recover_request(const std::string& topic) {
+void MessageSink<T>::send_recover_request(const std::string& topic) {
     RequestMessage get_request;
     get_request.set_cmd(RequestMessage_CMD_RECOVER);
     get_request.set_sink(topic_sink_[topic]);
@@ -403,12 +403,12 @@ void ConsumerServer<T>::send_recover_request(const std::string& topic) {
 
 /**
  * @brief 发送删除请求
- * 
+ *
  * @param topic 目标topic
  * @param keys 要删除数据的keys
  */
 template<typename T>
-void ConsumerServer<T>::send_del_request(const std::string& topic, const std::vector<std::size_t>& keys) {
+void MessageSink<T>::send_del_request(const std::string& topic, const std::vector<std::size_t>& keys) {
     for(auto key : keys) {
         RequestMessage del_request;
         del_request.set_cmd(RequestMessage_CMD_DEL);
@@ -420,12 +420,12 @@ void ConsumerServer<T>::send_del_request(const std::string& topic, const std::ve
 
 /**
  * @brief 发送删除请求
- * 
+ *
  * @param topic 目标topic
  * @param key 要删除数据的key
  */
 template<typename T>
-void ConsumerServer<T>::send_del_request(const std::string& topic, std::size_t key) {
+void MessageSink<T>::send_del_request(const std::string& topic, std::size_t key) {
     RequestMessage del_request;
     del_request.set_cmd(RequestMessage_CMD_DEL);
     del_request.set_key(key);
@@ -435,12 +435,12 @@ void ConsumerServer<T>::send_del_request(const std::string& topic, std::size_t k
 
 /**
  * @brief 发送删除请求
- * 
+ *
  * @param topic 目标topic
  * @param msg 要删除的数据
  */
 template<typename T>
-void ConsumerServer<T>::send_del_request(const std::string& topic, IDataMessage& msg) {
+void MessageSink<T>::send_del_request(const std::string& topic, IDataMessage& msg) {
     RequestMessage del_request;
     del_request.set_cmd(RequestMessage_CMD_DEL);
     del_request.set_key(msg.key());
@@ -450,12 +450,12 @@ void ConsumerServer<T>::send_del_request(const std::string& topic, IDataMessage&
 
 /**
  * @brief 发送删除请求
- * 
+ *
  * @param topic 目标topic
  * @param msg 要删除的数据
  */
 template<typename T>
-void ConsumerServer<T>::send_del_request(const std::string& topic, IDataMessage* msg) {
+void MessageSink<T>::send_del_request(const std::string& topic, IDataMessage* msg) {
     RequestMessage del_request;
     del_request.set_cmd(RequestMessage_CMD_DEL);
     del_request.set_key(msg->key());
@@ -466,7 +466,7 @@ void ConsumerServer<T>::send_del_request(const std::string& topic, IDataMessage*
 /**
  * @brief 轮询从对应topic的不同source中获取消息，每个source等待时间time，如果超时则从下一个source获取
  *        轮询一遍后都没有消息那么返回false
- * 
+ *
  * @param topic 目标topic
  * @param msg message
  * @param milliseconds_timeout 获取每个source的message的超时时间
@@ -475,7 +475,7 @@ void ConsumerServer<T>::send_del_request(const std::string& topic, IDataMessage*
  * @return false 无message返回
  */
 template<typename T>
-bool ConsumerServer<T>::get_msg(const std::string& topic, T** msg, std::size_t milliseconds_timeout, const std::string& source) {
+bool MessageSink<T>::get_msg(const std::string& topic, T** msg, std::size_t milliseconds_timeout, const std::string& source) {
     bool ret;
     auto recv_queues = this->recvs_[topic];
     if(source == "") {
@@ -499,7 +499,7 @@ bool ConsumerServer<T>::get_msg(const std::string& topic, T** msg, std::size_t m
 
 /**
  * @brief 从topic的source获取message
- * 
+ *
  * @param topic 目标topic
  * @param source source
  * @param milliseconds_timeout 超时时间
@@ -508,14 +508,14 @@ bool ConsumerServer<T>::get_msg(const std::string& topic, T** msg, std::size_t m
  * @return false 无message返回
  */
 template<typename T>
-bool ConsumerServer<T>::get_msg(const std::string& topic, const std::string& source, std::size_t milliseconds_timeout, T** msg) {
+bool MessageSink<T>::get_msg(const std::string& topic, const std::string& source, std::size_t milliseconds_timeout, T** msg) {
     auto queue = this->recvs_[topic][std::hash<std::string>()(source)];
     return queue->wait_dequeue_timed(*msg, std::chrono::milliseconds(milliseconds_timeout));
 }
 
 /**
  * @brief Get the msg object
- * 
+ *
  * @param topic 目标topic
  * @param sources source数组
  * @param milliseconds_timeout 每个source等待的超时时间
@@ -523,8 +523,8 @@ bool ConsumerServer<T>::get_msg(const std::string& topic, const std::string& sou
  * @return std::map<std::string, T*> source和message
  */
 template<typename T>
-std::map<std::string, T*> ConsumerServer<T>::get_msg(const std::string& topic, const std::vector<std::string>& sources, 
-                                                    std::size_t milliseconds_timeout, bool all_recv) 
+std::map<std::string, T*> MessageSink<T>::get_msg(const std::string& topic, const std::vector<std::string>& sources,
+        std::size_t milliseconds_timeout, bool all_recv)
 {
     auto queues = this->recvs_[topic];
     std::map<std::string, T*> ret;
@@ -550,45 +550,45 @@ std::map<std::string, T*> ConsumerServer<T>::get_msg(const std::string& topic, c
 
 /**
  * @brief Set the fixed recv object
- * 
+ *
  * @param batch recv batch size
  * @param size recv every message size
  */
 template<typename T>
-void ConsumerServer<T>::set_fixed_recv(std::size_t batch, std::size_t size) {
+void MessageSink<T>::set_fixed_recv(std::size_t batch, std::size_t size) {
     this->recv_fixed_ = true;
     this->fixed_num_ = batch;
     this->fixed_size_ = size;
 }
 
 template<typename T>
-void ConsumerServer<T>::start() {
+void MessageSink<T>::start() {
     running_ = true;
     //every topic has a thread
     //start threads to recv requst
     logger_->info("start thread group to recv message");
     for(auto topic : this->topics_) {
-        recv_message_threads_.create_thread(std::bind(&ConsumerServer::recv_message, this, topic));
+        recv_message_threads_.create_thread(std::bind(&MessageSink::recv_message, this, topic));
     }
 
     logger_->info("start thread group compelte");
 
     //启动时先发送recover确保不丢数据
-    // logger_->info("send recover request");
-    // for(int i = 0; i < topics_.size(); i++) {
-    //     this->send_recover_request(topics_[i]);
-    // }
+    logger_->info("send recover request after start");
+    for(int i = 0; i < topics_.size(); i++) {
+        this->send_recover_request(topics_[i]);
+    }
 }
 
 template<typename T>
-void ConsumerServer<T>::stop() {
+void MessageSink<T>::stop() {
     /* Wait for final messages to be delivered or fail.
     * flush() is an abstraction over poll() which
     * waits for all messages to be delivered. */
     for(auto producer_pair : this->producers_) {
-        logger_->info("Flushing final messages...");
-        producer_pair.second->flush(10*1000 /* wait for max 10 seconds */);
-        
+        logger_->info("flushing final messages...");
+        producer_pair.second->flush(10 * 1000 /* wait for max 10 seconds */);
+
         if (producer_pair.second->outq_len() > 0) {
             logger_->error(std::to_string(producer_pair.second->outq_len()) + " message(s) were not delivered");
         }
@@ -605,18 +605,18 @@ void ConsumerServer<T>::stop() {
  * @param low_water_marker
  */
 template<typename T>
-void ConsumerServer<T>::set_auto_request(bool auto_req, uint16_t low_water_marker) {
+void MessageSink<T>::set_auto_request(bool auto_req, uint16_t low_water_marker) {
 
 }
 
 /**
- * @brief 
- * 
- * @tparam T 
- * @param topic 
+ * @brief
+ *
+ * @tparam T
+ * @param topic
  */
 template<typename T>
-void ConsumerServer<T>::recv_message(const std::string& topic) {
+void MessageSink<T>::recv_message(const std::string& topic) {
     logger_->info("start a thread to recv message for topic: " + topic);
     auto recv_queues = recvs_[topic];
     thread_local void* socket = zmq_socket(zmq_ctx_, ZMQ_ROUTER);
@@ -655,7 +655,7 @@ void ConsumerServer<T>::recv_message(const std::string& topic) {
             if(n_bytes == -1) {
                 continue;
             }
-            // logger_->info("get message from: " + std::to_string(source));
+            SPDLOG_DEBUG("get message from: " + std::to_string(source));
 
             //recv message size
             std::size_t size = 0;
@@ -663,7 +663,7 @@ void ConsumerServer<T>::recv_message(const std::string& topic) {
                 n_bytes = zmq_recv(socket, &size, 8, ZMQ_RCVMORE);
             } while (n_bytes == -1 && running_);
 
-            // logger_->info("message len: " + std::to_string(size));
+            SPDLOG_DEBUG("message len: " + std::to_string(size));
 
             if(n_bytes == -1) {
                 break;
@@ -676,7 +676,7 @@ void ConsumerServer<T>::recv_message(const std::string& topic) {
                 n_bytes = zmq_recv(socket, msg->data(), size, 0);
             } while (n_bytes == -1 && running_);
             msg->size(n_bytes);
-            
+
             if(n_bytes == -1) {
                 break;
             }
@@ -689,4 +689,5 @@ void ConsumerServer<T>::recv_message(const std::string& topic) {
 }
 
 }
-#endif //_CONSUMERSERVER_H
+
+#endif /* _MESSAGESINK_H */

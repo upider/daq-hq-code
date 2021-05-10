@@ -7,6 +7,6 @@ pass data in daq dataflow
 tests
 
 ## TODO
-1. recover and delete
-2. fixed message size send and recv
-3. metrics
+- [x] recover and delete
+- [x] fixed message size send and recv
+- [ ] metrics

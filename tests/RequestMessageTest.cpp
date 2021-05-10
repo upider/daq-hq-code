@@ -1,4 +1,4 @@
-#include "message/RequestMessage.pb.h"
+#include "message/request_message.pb.h"
 
 using namespace message_pass;
 

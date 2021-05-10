@@ -1,8 +1,7 @@
 #include <memory>
 #include <unistd.h>
 
-#include "producer/ProducerServer.h"
-#include "message/IMultiDataMessage.h"
+#include "message_source/message_source.h"
 #include "TestDataMessage.h"
 
 using namespace message_pass;
@@ -12,8 +11,8 @@ int main(void)
     std::string topic{"test"};
     std::string id{"centos204"};
 
-    std::shared_ptr<ProducerServer<TestDataMessage>> 
-    ps(new ProducerServer<TestDataMessage>("192.168.37.201:9092", {topic}, 1));
+    std::shared_ptr<MessageSource<TestDataMessage>>
+            ps(new MessageSource<TestDataMessage>("192.168.37.201:9092", {topic}, 1));
 
     ps->set_identity(id);
     ps->start();
