@@ -143,24 +143,26 @@ class MessageSource {
                 KafkaEventCb(std::shared_ptr<spdlog::logger> logger): logger_(logger) {}
                 void event_cb (RdKafka::Event &event) {
                     switch (event.type()) {
-                    case RdKafka::Event::EVENT_ERROR: {
-                        // logger_->error(RdKafka::err2str(event.err()));
-                        break;
-                    }
-                    case RdKafka::Event::EVENT_STATS: {
-                        // logger_->error(event.str());
-                        break;
-                    }
-                    case RdKafka::Event::EVENT_LOG: {
-                        // logger_->error(event.str());
-                        break;
-                    }
-                    case RdKafka::Event::EVENT_THROTTLE: {
-                        // logger_->error("THROTTLED");
-                        break;
-                    }
-                    default:
-                        // logger_->info(event.str());
+                        case RdKafka::Event::EVENT_ERROR: {
+                            // logger_->error(RdKafka::err2str(event.err()));
+                            break;
+                        }
+                        case RdKafka::Event::EVENT_STATS: {
+                            // logger_->error(event.str());
+                            break;
+                        }
+                        case RdKafka::Event::EVENT_LOG: {
+                            // logger_->error(event.str());
+                            break;
+                        }
+                        case RdKafka::Event::EVENT_THROTTLE: {
+                            // logger_->error("THROTTLED");
+                            break;
+                        }
+                        default: {
+                            // logger_->info(event.str());
+                            break;
+                        }
                     }
                 }
         };
