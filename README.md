@@ -8,6 +8,7 @@ pass data in daq dataflow
 2. jsoncpp
 3. Protobuf
 4. spdlog
+5. librdkafka
 
 ## example
 tests
