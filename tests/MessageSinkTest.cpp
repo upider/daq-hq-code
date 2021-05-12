@@ -4,7 +4,8 @@
 
 using namespace message_pass;
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     cmdline::parser cmdline_parser;
     cmdline_parser.add<std::string>("ip", 0, "server ip address");
     cmdline_parser.add<int>("port", 0, "server port");

@@ -1,6 +1,7 @@
 #include <memory>
 #include <vector>
 #include <unistd.h>
+#include <thread>
 
 #include "message_source/message_source.h"
 #include "utils/cmdline.h"

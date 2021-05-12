@@ -124,15 +124,16 @@ class MessageSink {
         bool get_msg(const std::string& topic, const std::string& source, std::size_t milliseconds_timeout, T** msg);
 
         /**
-         * @brief 对topic的对应每个source获取一个message
+         * @brief 从topic的source获取message
          *
          * @param topic 目标topic
-         * @param sources source数组
-         * @param milliseconds_timeout 每个source等待的超时时间
-         * @param all_recv 是否需要等待所有source的message
-         * @return std::map<std::string, T*> source和message
+         * @param source source的hash值
+         * @param milliseconds_timeout 超时时间
+         * @param msg message
+         * @return true 有message返回
+         * @return false 无message返回
          */
-        std::map<std::string, T*> get_msg(const std::string& topic, const std::vector<std::string>& sources, std::size_t milliseconds_timeout, bool all_recv);
+        bool get_msg(const std::string& topic, std::size_t source, std::size_t milliseconds_timeout, T** msg);
 
         /**
          * @brief Set the fixed recv object
@@ -245,10 +246,22 @@ template<typename T>
 MessageSink<T>::~MessageSink() {
     //destroy zmq
     zmq_ctx_destroy(zmq_ctx_);
-    //TODO: delete element in queue
+    
     //destory queues
     for(auto& queue_map : recvs_) {
         for (auto& queue_pair : queue_map.second) {
+            T* msg;
+            bool ret;
+            
+            while (true) {
+                bool ret = queue_pair.second->try_dequeue(msg);
+                if(ret) {
+                    delete msg;
+                } else {
+                    break;
+                }
+            }
+
             delete queue_pair.second;
         }
     }
@@ -478,8 +491,9 @@ bool MessageSink<T>::get_msg(const std::string& topic, T** msg, std::size_t mill
     bool ret;
     auto recv_queues = this->recvs_[topic];
     if(source == "") {
-        for(auto &q : recv_queues) {
-            ret = q.second->wait_dequeue_timed(msg, std::chrono::milliseconds(milliseconds_timeout));
+        auto it = recv_queues.begin();
+        for(; it != recv_queues.end(); ++it) {
+            ret = it->second->wait_dequeue_timed(msg, std::chrono::milliseconds(milliseconds_timeout));
             if(ret) {
                 break;
             }
@@ -508,43 +522,30 @@ bool MessageSink<T>::get_msg(const std::string& topic, T** msg, std::size_t mill
  */
 template<typename T>
 bool MessageSink<T>::get_msg(const std::string& topic, const std::string& source, std::size_t milliseconds_timeout, T** msg) {
-    auto queue = this->recvs_[topic][std::hash<std::string>()(source)];
+    brwQueue<T*>* queue = this->recvs_[topic][std::hash<std::string>()(source)];
+    if(queue == nullptr) {
+        return false;
+    }
     return queue->wait_dequeue_timed(*msg, std::chrono::milliseconds(milliseconds_timeout));
 }
 
 /**
- * @brief Get the msg object
+ * @brief 从topic的source获取message
  *
  * @param topic 目标topic
- * @param sources source数组
- * @param milliseconds_timeout 每个source等待的超时时间
- * @param all_recv 是否需要等待所有source的message
- * @return std::map<std::string, T*> source和message
+ * @param source source的hash值
+ * @param milliseconds_timeout 超时时间
+ * @param msg message
+ * @return true 有message返回
+ * @return false 无message返回
  */
 template<typename T>
-std::map<std::string, T*> MessageSink<T>::get_msg(const std::string& topic, const std::vector<std::string>& sources,
-        std::size_t milliseconds_timeout, bool all_recv)
-{
-    auto queues = this->recvs_[topic];
-    std::map<std::string, T*> ret;
-    if(all_recv) {
-        for(auto source : sources) {
-            T* msg = new T();
-            while(!queues[std::hash<std::string>()(source)]->wait_dequeue_timed(msg, std::chrono::milliseconds(milliseconds_timeout)));
-            ret[source] = msg;
-        }
-    } else {
-        for(auto source : sources) {
-            T* msg = new T();
-            if(queues[std::hash<std::string>()(source)]->wait_dequeue_timed(msg, std::chrono::milliseconds(milliseconds_timeout))) {
-                ret[source] = msg;
-            } else {
-                ret[source] = nullptr;
-                delete msg;
-            }
-        }
+bool MessageSink<T>::get_msg(const std::string& topic, std::size_t source, std::size_t milliseconds_timeout, T** msg) {
+    auto queue = this->recvs_[topic][source];
+    if(queue == nullptr) {
+        return false;
     }
-    return ret;
+    return queue->wait_dequeue_timed(*msg, std::chrono::milliseconds(milliseconds_timeout));
 }
 
 /**

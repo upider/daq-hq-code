@@ -24,7 +24,7 @@ class MessageLogger {
 			pattern["logger"] = "%n";
 			pattern["level"] = "%l";
 			pattern["line"] = "%#";
-			pattern["source_file"] = "%s";
+			pattern["file"] = "%s";
 			pattern["process"] = "%P";
 			pattern["thread"] = "%t";
 			pattern["func"] = "%!";

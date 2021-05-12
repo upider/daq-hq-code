@@ -111,14 +111,6 @@ class MessageSource {
         std::shared_ptr<spdlog::logger> logger_;
 
         /**
-         * @brief zmq context for tasks
-         */
-        void* zmq_task_ctx_;
-        /**
-         * @brief 传递sent、del、recover任务
-         */
-        const std::string task_endpoint_{"inproc://sent-del-recover"};
-        /**
          * @brief every topic has a task thread
          */
         boost::thread_group task_threads_;
@@ -207,8 +199,6 @@ void MessageSource<T>::init(const std::vector<std::string>& topics) {
     //initialize zmq
     zmq_ctx_ = zmq_ctx_new();
     zmq_ctx_set(zmq_ctx_, ZMQ_IO_THREADS, io_threads_);
-    zmq_task_ctx_ = zmq_ctx_new();
-    zmq_ctx_set(zmq_ctx_, ZMQ_IO_THREADS, topics_.size());
 
     //initialize kafka global conf
     std::string errstr;
@@ -248,11 +238,24 @@ void MessageSource<T>::init(const std::vector<std::string>& topics) {
 template<typename T>
 MessageSource<T>::~MessageSource() {
     //destroy zmq
+    SPDLOG_DEBUG("destroying zmq ...");
     zmq_ctx_destroy(zmq_ctx_);
-    zmq_ctx_destroy(zmq_task_ctx_);
+    SPDLOG_DEBUG("destroy zmq");
+
     //destroy queues
-    //TODO: delete elements in queue
     for(auto queue : readys_) {
+        T* msg;
+        bool ret;
+        
+        while (true) {
+            bool ret = queue.second->try_dequeue(msg);
+            if(ret) {
+                delete msg;
+            } else {
+                break;
+            }
+        }
+        
         delete queue.second;
     }
 
@@ -332,7 +335,7 @@ void MessageSource<T>::recv_request(const std::string& topic) {
 
         switch (msg->err()) {
             case RdKafka::ERR__TIMED_OUT: {
-                SPDLOG_DEBUG("consume time out");
+                SPDLOG_DEBUG("no request in topic server");
                 break;
             }
             case RdKafka::ERR_NO_ERROR: {
@@ -406,8 +409,12 @@ void MessageSource<T>::task_thread(const std::string& topic) {
                 void* socket;
                 if(it == thread_local_sockets.end()) {
                     //if no socket for this sink
-                    socket = zmq_socket (zmq_ctx_, ZMQ_DEALER);
+                    socket = zmq_socket(zmq_ctx_, ZMQ_DEALER);
+                    //设置ZMQ_ROUTING_ID
                     zmq_setsockopt(socket, ZMQ_ROUTING_ID, &this->identity_, sizeof(this->identity_));
+                    //设置ZMQ_LINGER，默认要等待所有消息发送后才能关闭zmq socket
+                    int linger = 500;
+                    zmq_setsockopt(socket, ZMQ_LINGER, &linger, sizeof(linger));
                     thread_local_sockets[remote_req->sink()] = socket;
                     thread_local_sents_[remote_req->sink()] = std::map<std::size_t, T*>();
                     int rc = zmq_connect(socket, remote_req->sink().c_str());
@@ -445,10 +452,11 @@ void MessageSource<T>::task_thread(const std::string& topic) {
         delete remote_req;
     }
 
-    //destroy zmq socket
-    for(auto pair_socket : thread_local_sockets) {
-        zmq_close(pair_socket.second);
+    //destroy zmq sockets
+    for(auto it = thread_local_sockets.begin(); it != thread_local_sockets.end(); ++it) {
+        zmq_close(it->second);
     }
+
     logger_->info("stop task thread for topic: {}", topic);
 }
 
