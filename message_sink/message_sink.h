@@ -157,7 +157,7 @@ class MessageSink {
         using brwQueue = moodycamel::BlockingReaderWriterQueue<T2>;
 
         /**
-         * 每个<topic, <source, queue>>对应一个接收队列
+         * 每个<topic, <source, queue>>对应一个接收队列, source使用std::size_t可以为固定长度
          */
         std::map<std::string, std::map<std::size_t, brwQueue<T*>*>> recvs_;
 
@@ -206,9 +206,9 @@ class MessageSink {
                     /* If message.err() is non-zero the message delivery failed permanently
                     * for the message. */
                     if (message.err()) {
-                        logger_->error("message delivery failed: " + message.errstr());
+                        // logger_->error("message delivery failed: " + message.errstr());
                     } else {
-                        logger_->info("message delivered to topic " + message.topic_name());
+                        // logger_->info("message delivered to topic " + message.topic_name());
                     }
                 }
 
@@ -321,7 +321,6 @@ void MessageSink<T>::send_request(const std::string& topic, const RequestMessage
     auto producer = producers_[topic];
     std::string str_rmsg;
     rmsg.SerializeToString(&str_rmsg);
-    logger_->info("send request: " + str_rmsg);
 retry:
     RdKafka::ErrorCode err = producer->produce(
                                  topic,
@@ -356,7 +355,7 @@ retry:
             goto retry;
         }
     } else {
-        logger_->info("enqueued reuqest message for topic " + topic);
+        // logger_->info("enqueued reuqest message for topic: {}", topic);
     }
 
     /* A producer application should continually serve
@@ -618,7 +617,7 @@ void MessageSink<T>::set_auto_request(bool auto_req, uint16_t low_water_marker) 
 template<typename T>
 void MessageSink<T>::recv_message(const std::string& topic) {
     logger_->info("start a thread to recv message for topic: " + topic);
-    auto recv_queues = recvs_[topic];
+    auto& recv_queues = recvs_[topic];
     thread_local void* socket = zmq_socket(zmq_ctx_, ZMQ_ROUTER);
     //ZMQ_RCVTIMEO must be int
     int recv_timeout = 50;
@@ -626,6 +625,10 @@ void MessageSink<T>::recv_message(const std::string& topic) {
     zmq_setsockopt(socket, ZMQ_RCVTIMEO, &recv_timeout, sizeof(recv_timeout));
     int rc = zmq_bind(socket, topic_sink_[topic].c_str());
     assert(rc == 0);
+
+    SPDLOG_DEBUG("start recving ...");
+    auto start = std::chrono::steady_clock::now();
+    std::size_t cnt = 0;
 
     int n_bytes;
     if(recv_fixed_) {
@@ -655,7 +658,7 @@ void MessageSink<T>::recv_message(const std::string& topic) {
             if(n_bytes == -1) {
                 continue;
             }
-            SPDLOG_DEBUG("get message from: " + std::to_string(source));
+            // SPDLOG_DEBUG("get message from: " + std::to_string(source));
 
             //recv message size
             std::size_t size = 0;
@@ -663,7 +666,7 @@ void MessageSink<T>::recv_message(const std::string& topic) {
                 n_bytes = zmq_recv(socket, &size, 8, ZMQ_RCVMORE);
             } while (n_bytes == -1 && running_);
 
-            SPDLOG_DEBUG("message len: " + std::to_string(size));
+            // SPDLOG_DEBUG("message len: " + std::to_string(size));
 
             if(n_bytes == -1) {
                 break;
@@ -680,7 +683,17 @@ void MessageSink<T>::recv_message(const std::string& topic) {
             if(n_bytes == -1) {
                 break;
             }
+            auto it = recv_queues.find(source);
+            if(it == recv_queues.end()) {
+                recv_queues[source] = new brwQueue<T*>();
+            }
             recv_queues[source]->enqueue(msg);
+            if(cnt == 1000000) {
+                auto end = std::chrono::steady_clock::now();
+                std::chrono::duration<double> diff = end-start;
+                double speed = 1000000 / diff.count();
+                SPDLOG_DEBUG("recv 1000000 messages used {}s, recv speed {}/s", diff.count(), speed);
+            }
         }
     }
 

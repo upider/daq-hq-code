@@ -1,33 +1,43 @@
 #include "message_sink/message_sink.h"
+#include "utils/cmdline.h"
 #include "TestDataMessage.h"
 
 using namespace message_pass;
 
-int main(void)
-{
-    std::shared_ptr<MessageSink<TestDataMessage>>
-            cs(new MessageSink<TestDataMessage>("192.168.37.204", 9999,
-                    "192.168.37.201:9092", {"test"}, 1));
+int main(int argc, char *argv[]) {
+    cmdline::parser cmdline_parser;
+    cmdline_parser.add<std::string>("ip", 0, "server ip address");
+    cmdline_parser.add<int>("port", 0, "server port");
+    cmdline_parser.add<std::string>("topic_server", 0, "topic server address (kafka broker list)");
+    cmdline_parser.add<std::string>("topic", 0, "subscribe topic");
+    cmdline_parser.add<std::size_t>("io_threads", 0, "threads number for zmq");
+    cmdline_parser.add<std::string>("source_id", 0, "message source identity");
 
-    std::string topic{"test"};
-    std::string source{"centos204"};
+    cmdline_parser.parse_check(argc, argv);
+
+    std::string topic = cmdline_parser.get<std::string>("topic");
+
+    std::shared_ptr<MessageSink<TestDataMessage>>
+    cs(new MessageSink<TestDataMessage>(
+       cmdline_parser.get<std::string>("ip"),
+       cmdline_parser.get<int>("port"),
+       cmdline_parser.get<std::string>("topic_server"), 
+       {topic},
+       cmdline_parser.get<std::size_t>("io_threads")
+       )
+    );
+
+    std::string source = cmdline_parser.get<std::string>("source_id");
     cs->prepare_sources(topic, {source});
     //start 必须在send request之前调用
     cs->start();
 
-    TestDataMessage* msg;
-    cs->send_get_request(topic);
+    for (size_t i = 0; i < 1000000; i++) {
+        cs->send_get_request(topic);
+    }
 
-    while(!cs->get_msg(topic, source, 5000, &msg));
-
-    char* str = new char[msg->size() + 1];
-    str[msg->size()] = '\0';
-    std::memcpy(str, msg->data(), msg->size());
-    std::cout << "recv " << msg->size() << " bytes message: " << str << "\n";
-
-    sleep(30);
+    sleep(600);
     cs->stop();
 
-    delete msg;
     return 0;
 }

@@ -152,23 +152,23 @@ class MessageSource {
                 void event_cb (RdKafka::Event &event) {
                     switch (event.type()) {
                     case RdKafka::Event::EVENT_ERROR: {
-                        logger_->error(RdKafka::err2str(event.err()));
+                        // logger_->error(RdKafka::err2str(event.err()));
                         break;
                     }
                     case RdKafka::Event::EVENT_STATS: {
-                        logger_->error(event.str());
+                        // logger_->error(event.str());
                         break;
                     }
                     case RdKafka::Event::EVENT_LOG: {
-                        logger_->error(event.str());
+                        // logger_->error(event.str());
                         break;
                     }
                     case RdKafka::Event::EVENT_THROTTLE: {
-                        logger_->error("THROTTLED");
+                        // logger_->error("THROTTLED");
                         break;
                     }
                     default:
-                        logger_->info(event.str());
+                        // logger_->info(event.str());
                     }
                 }
         };
@@ -284,7 +284,6 @@ void MessageSource<T>::send(const std::string& topic, T* msg) {
 
 template<typename T>
 void MessageSource<T>::start() {
-    SPDLOG_DEBUG("+++++++++++++++++++++start+++++++++++++++++++++");
     running_ = true;
     //every topic has a thread
     //start threads to recv requst
@@ -339,24 +338,24 @@ void MessageSource<T>::recv_request(const std::string& topic) {
             case RdKafka::ERR_NO_ERROR: {
                 RequestMessage* remote_req = new RequestMessage();
                 if(!remote_req->ParseFromString(static_cast<char*>(msg->payload()))) {
-                    logger_->error("parse protobuf from a string failed");
+                    // logger_->error("parse protobuf from a string failed");
                     continue;
                 }
                 //insert request in request_queue
                 request_queue->enqueue(remote_req);
-                SPDLOG_DEBUG("insert request in request_queue for topic: {}", topic);
+                // SPDLOG_DEBUG("insert request in request_queue for topic: {}", topic);
                 break;
             }
             case RdKafka::ERR__UNKNOWN_TOPIC: {
-                logger_->error("no such topic");
+                // logger_->error("no such topic");
                 break;
             }
             case RdKafka::ERR__UNKNOWN_PARTITION: {
-                logger_->error("no such partition");
+                // logger_->error("no such partition");
                 break;
             }
             default: {
-                logger_->warn(msg->errstr());
+                // logger_->warn(msg->errstr());
                 break;
             }
         }
@@ -389,6 +388,9 @@ void MessageSource<T>::task_thread(const std::string& topic) {
     thread_local std::map<std::string, std::map<std::size_t, T*>> thread_local_sents_;
 
     auto request_queue = request_queues_[topic];
+
+    SPDLOG_DEBUG("start sending messages ...");
+    std::size_t cnt=0;
 
     while(this->running_) {
         RequestMessage* remote_req;
@@ -423,6 +425,9 @@ void MessageSource<T>::task_thread(const std::string& topic) {
                 }
                 send_msg(socket, msg);
                 store_msg(thread_local_sents_, remote_req, msg);
+                if(cnt == 1000000) {
+                    SPDLOG_DEBUG("send 1000000 messages");
+                }
                 break;
             }
             case RequestMessage_CMD_DEL : {

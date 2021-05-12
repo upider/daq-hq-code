@@ -76,7 +76,9 @@ class TestDataMessage : virtual public IDataMessage
         }
 
         virtual std::size_t key() {
-            return 100 + this->buffer_[0];
+            std::size_t key;
+            std::memcpy(&key, buffer_, 8);
+            return key;
         }
 
         std::string to_string() {
