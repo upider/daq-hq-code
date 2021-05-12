@@ -36,14 +36,14 @@ int main(int argc, char *argv[]) {
 
     SPDLOG_INFO("start sending 1000,000 messages ...");
     for(std::size_t i = 0; i < 1000000; i++) {
-        TestDataMessage* msg = new TestDataMessage(500);
+        TestDataMessage* msg = new TestDataMessage(8);
         std::memcpy(msg->data(), &i, sizeof(i));
         msg->size(500);
         ps->send(topic, msg);
     }
     SPDLOG_INFO("sending messages stop");
 
-    sleep(600);
+    sleep(-1);
     ps->stop();
 
     return 0;

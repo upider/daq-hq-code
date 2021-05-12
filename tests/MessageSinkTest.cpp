@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
         cs->send_get_request(topic);
     }
 
-    sleep(600);
+    sleep(-1);
     cs->stop();
 
     return 0;

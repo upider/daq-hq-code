@@ -337,7 +337,7 @@ void MessageSource<T>::recv_request(const std::string& topic) {
 
         switch (msg->err()) {
             case RdKafka::ERR__TIMED_OUT: {
-                SPDLOG_DEBUG("no request in topic server");
+                // SPDLOG_DEBUG("no request in topic server");
                 break;
             }
             case RdKafka::ERR_NO_ERROR: {
