@@ -27,9 +27,6 @@
 
 namespace message_pass {
 
-static int partition_cnt = 0;
-static int eof_cnt = 0;
-
 template<typename T>
 class MessageSource {
         static_assert(std::is_base_of<IDataMessage, T>::value, "template parameter is not derived from IDataMessage");
@@ -250,7 +247,7 @@ MessageSource<T>::~MessageSource() {
         bool ret;
         
         while (true) {
-            bool ret = queue.second->try_dequeue(msg);
+            ret = queue.second->try_dequeue(msg);
             if(ret) {
                 delete msg;
             } else {

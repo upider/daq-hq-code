@@ -254,7 +254,7 @@ MessageSink<T>::~MessageSink() {
             bool ret;
             
             while (true) {
-                bool ret = queue_pair.second->try_dequeue(msg);
+                ret = queue_pair.second->try_dequeue(msg);
                 if(ret) {
                     delete msg;
                 } else {
@@ -575,7 +575,7 @@ void MessageSink<T>::start() {
 
     //启动时先发送recover确保不丢数据
     logger_->info("send recover request after start");
-    for(int i = 0; i < topics_.size(); i++) {
+    for(std::size_t i = 0; i < topics_.size(); i++) {
         this->send_recover_request(topics_[i]);
     }
 }

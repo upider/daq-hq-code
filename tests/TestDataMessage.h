@@ -58,6 +58,11 @@ class TestDataMessage : virtual public IDataMessage
 
         virtual std::size_t grow(std::size_t size) {
             //TODO: grow
+            char* new_buf = new char[size + this->size_];
+            std::memcpy(new_buf, this->buffer_, this->size_);
+            delete this->buffer_;
+            this->buffer_ = new_buf;
+            this->capacity_ += size;
             return this->capacity_;
         }
 
@@ -72,6 +77,7 @@ class TestDataMessage : virtual public IDataMessage
 
         virtual std::size_t add(const void* data, std::size_t size) {
             //TODO: add
+            std::memcpy(this->buffer_+this->size_, data, size);
             return this->size_;
         }
 
