@@ -3,7 +3,8 @@ cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_CXX_COMPILER "g++")
 set(CMAKE_C_COMPILER "gcc")
-set(CXX_FLAGS -g -Wall -Wextra -pedantic -pedantic-errors -Werror -Wfatal-errors -Wconversion -Wabi-tag -fPIC -std=c++11)
+# set(CXX_FLAGS -g -Wall -Wextra -pedantic -pedantic-errors -Werror -Wfatal-errors -Wconversion -Wabi-tag -fPIC -std=c++11)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -Wextra -pedantic -pedantic-errors -Wfatal-errors -Wconversion -fPIC -std=c++11")
 
 find_package(spdlog REQUIRED)
 if (spdlog_FOUND)

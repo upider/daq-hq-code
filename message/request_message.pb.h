@@ -239,8 +239,8 @@ class RequestMessage PROTOBUF_FINAL :
 
   enum : int {
     kSinkFieldNumber = 3,
-    kCmdFieldNumber = 1,
     kKeyFieldNumber = 2,
+    kCmdFieldNumber = 1,
   };
   // string sink = 3;
   void clear_sink();
@@ -258,6 +258,15 @@ class RequestMessage PROTOBUF_FINAL :
   std::string* _internal_mutable_sink();
   public:
 
+  // uint64 key = 2;
+  void clear_key();
+  ::PROTOBUF_NAMESPACE_ID::uint64 key() const;
+  void set_key(::PROTOBUF_NAMESPACE_ID::uint64 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::uint64 _internal_key() const;
+  void _internal_set_key(::PROTOBUF_NAMESPACE_ID::uint64 value);
+  public:
+
   // .message_pass.RequestMessage.CMD cmd = 1;
   void clear_cmd();
   ::message_pass::RequestMessage_CMD cmd() const;
@@ -265,15 +274,6 @@ class RequestMessage PROTOBUF_FINAL :
   private:
   ::message_pass::RequestMessage_CMD _internal_cmd() const;
   void _internal_set_cmd(::message_pass::RequestMessage_CMD value);
-  public:
-
-  // uint32 key = 2;
-  void clear_key();
-  ::PROTOBUF_NAMESPACE_ID::uint32 key() const;
-  void set_key(::PROTOBUF_NAMESPACE_ID::uint32 value);
-  private:
-  ::PROTOBUF_NAMESPACE_ID::uint32 _internal_key() const;
-  void _internal_set_key(::PROTOBUF_NAMESPACE_ID::uint32 value);
   public:
 
   // @@protoc_insertion_point(class_scope:message_pass.RequestMessage)
@@ -284,8 +284,8 @@ class RequestMessage PROTOBUF_FINAL :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr sink_;
+  ::PROTOBUF_NAMESPACE_ID::uint64 key_;
   int cmd_;
-  ::PROTOBUF_NAMESPACE_ID::uint32 key_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_request_5fmessage_2eproto;
 };
@@ -320,22 +320,22 @@ inline void RequestMessage::set_cmd(::message_pass::RequestMessage_CMD value) {
   // @@protoc_insertion_point(field_set:message_pass.RequestMessage.cmd)
 }
 
-// uint32 key = 2;
+// uint64 key = 2;
 inline void RequestMessage::clear_key() {
-  key_ = 0u;
+  key_ = PROTOBUF_ULONGLONG(0);
 }
-inline ::PROTOBUF_NAMESPACE_ID::uint32 RequestMessage::_internal_key() const {
+inline ::PROTOBUF_NAMESPACE_ID::uint64 RequestMessage::_internal_key() const {
   return key_;
 }
-inline ::PROTOBUF_NAMESPACE_ID::uint32 RequestMessage::key() const {
+inline ::PROTOBUF_NAMESPACE_ID::uint64 RequestMessage::key() const {
   // @@protoc_insertion_point(field_get:message_pass.RequestMessage.key)
   return _internal_key();
 }
-inline void RequestMessage::_internal_set_key(::PROTOBUF_NAMESPACE_ID::uint32 value) {
+inline void RequestMessage::_internal_set_key(::PROTOBUF_NAMESPACE_ID::uint64 value) {
   
   key_ = value;
 }
-inline void RequestMessage::set_key(::PROTOBUF_NAMESPACE_ID::uint32 value) {
+inline void RequestMessage::set_key(::PROTOBUF_NAMESPACE_ID::uint64 value) {
   _internal_set_key(value);
   // @@protoc_insertion_point(field_set:message_pass.RequestMessage.key)
 }

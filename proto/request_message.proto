@@ -9,6 +9,6 @@ message RequestMessage {
         RECOVER = 2;
     }
     CMD cmd = 1;
-    uint32 key = 2;
+    uint64 key = 2;
     string sink = 3;
 }

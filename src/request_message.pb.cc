@@ -20,9 +20,9 @@ namespace message_pass {
 constexpr RequestMessage::RequestMessage(
   ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized)
   : sink_(&::PROTOBUF_NAMESPACE_ID::internal::fixed_address_empty_string)
+  , key_(PROTOBUF_ULONGLONG(0))
   , cmd_(0)
-
-  , key_(0u){}
+{}
 struct RequestMessageDefaultTypeInternal {
   constexpr RequestMessageDefaultTypeInternal()
     : _instance(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized{}) {}
@@ -58,7 +58,7 @@ static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] =
 const char descriptor_table_protodef_request_5fmessage_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
   "\n\025request_message.proto\022\014message_pass\"\200\001"
   "\n\016RequestMessage\022-\n\003cmd\030\001 \001(\0162 .message_"
-  "pass.RequestMessage.CMD\022\013\n\003key\030\002 \001(\r\022\014\n\004"
+  "pass.RequestMessage.CMD\022\013\n\003key\030\002 \001(\004\022\014\n\004"
   "sink\030\003 \001(\t\"$\n\003CMD\022\007\n\003GET\020\000\022\007\n\003DEL\020\001\022\013\n\007R"
   "ECOVER\020\002b\006proto3"
   ;
@@ -122,18 +122,18 @@ RequestMessage::RequestMessage(const RequestMessage& from)
     sink_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, from._internal_sink(), 
       GetArena());
   }
-  ::memcpy(&cmd_, &from.cmd_,
-    static_cast<size_t>(reinterpret_cast<char*>(&key_) -
-    reinterpret_cast<char*>(&cmd_)) + sizeof(key_));
+  ::memcpy(&key_, &from.key_,
+    static_cast<size_t>(reinterpret_cast<char*>(&cmd_) -
+    reinterpret_cast<char*>(&key_)) + sizeof(cmd_));
   // @@protoc_insertion_point(copy_constructor:message_pass.RequestMessage)
 }
 
 void RequestMessage::SharedCtor() {
 sink_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
 ::memset(reinterpret_cast<char*>(this) + static_cast<size_t>(
-    reinterpret_cast<char*>(&cmd_) - reinterpret_cast<char*>(this)),
-    0, static_cast<size_t>(reinterpret_cast<char*>(&key_) -
-    reinterpret_cast<char*>(&cmd_)) + sizeof(key_));
+    reinterpret_cast<char*>(&key_) - reinterpret_cast<char*>(this)),
+    0, static_cast<size_t>(reinterpret_cast<char*>(&cmd_) -
+    reinterpret_cast<char*>(&key_)) + sizeof(cmd_));
 }
 
 RequestMessage::~RequestMessage() {
@@ -164,9 +164,9 @@ void RequestMessage::Clear() {
   (void) cached_has_bits;
 
   sink_.ClearToEmpty();
-  ::memset(&cmd_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&key_) -
-      reinterpret_cast<char*>(&cmd_)) + sizeof(key_));
+  ::memset(&key_, 0, static_cast<size_t>(
+      reinterpret_cast<char*>(&cmd_) -
+      reinterpret_cast<char*>(&key_)) + sizeof(cmd_));
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -185,10 +185,10 @@ const char* RequestMessage::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE
           _internal_set_cmd(static_cast<::message_pass::RequestMessage_CMD>(val));
         } else goto handle_unusual;
         continue;
-      // uint32 key = 2;
+      // uint64 key = 2;
       case 2:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 16)) {
-          key_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          key_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
@@ -236,10 +236,10 @@ failure:
       1, this->_internal_cmd(), target);
   }
 
-  // uint32 key = 2;
+  // uint64 key = 2;
   if (this->key() != 0) {
     target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt32ToArray(2, this->_internal_key(), target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt64ToArray(2, this->_internal_key(), target);
   }
 
   // string sink = 3;
@@ -275,17 +275,17 @@ size_t RequestMessage::ByteSizeLong() const {
         this->_internal_sink());
   }
 
+  // uint64 key = 2;
+  if (this->key() != 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt64Size(
+        this->_internal_key());
+  }
+
   // .message_pass.RequestMessage.CMD cmd = 1;
   if (this->cmd() != 0) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::EnumSize(this->_internal_cmd());
-  }
-
-  // uint32 key = 2;
-  if (this->key() != 0) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
-        this->_internal_key());
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -322,11 +322,11 @@ void RequestMessage::MergeFrom(const RequestMessage& from) {
   if (from.sink().size() > 0) {
     _internal_set_sink(from._internal_sink());
   }
-  if (from.cmd() != 0) {
-    _internal_set_cmd(from._internal_cmd());
-  }
   if (from.key() != 0) {
     _internal_set_key(from._internal_key());
+  }
+  if (from.cmd() != 0) {
+    _internal_set_cmd(from._internal_cmd());
   }
 }
 
@@ -353,11 +353,11 @@ void RequestMessage::InternalSwap(RequestMessage* other) {
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
   sink_.Swap(&other->sink_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(RequestMessage, key_)
-      + sizeof(RequestMessage::key_)
-      - PROTOBUF_FIELD_OFFSET(RequestMessage, cmd_)>(
-          reinterpret_cast<char*>(&cmd_),
-          reinterpret_cast<char*>(&other->cmd_));
+      PROTOBUF_FIELD_OFFSET(RequestMessage, cmd_)
+      + sizeof(RequestMessage::cmd_)
+      - PROTOBUF_FIELD_OFFSET(RequestMessage, key_)>(
+          reinterpret_cast<char*>(&key_),
+          reinterpret_cast<char*>(&other->key_));
 }
 
 ::PROTOBUF_NAMESPACE_ID::Metadata RequestMessage::GetMetadata() const {

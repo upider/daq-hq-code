@@ -18,7 +18,7 @@ class MessageLogger {
 		MessageLogger() {}
 		~MessageLogger() {}
 
-		static auto get_logger(const std::string& logger_name) {
+		static std::shared_ptr<spdlog::logger> get_logger(const std::string& logger_name) {
 			Json::Value pattern;
 			pattern["time"] = "%Y-%m-%d %H:%M:%S.%f";
 			pattern["logger"] = "%n";
