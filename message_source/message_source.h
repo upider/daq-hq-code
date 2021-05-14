@@ -145,11 +145,11 @@ class MessageSource {
                         break;
                     }
                     case RdKafka::Event::EVENT_STATS: {
-                        logger_->error(event.str());
+                        logger_->info(event.str());
                         break;
                     }
                     case RdKafka::Event::EVENT_LOG: {
-                        logger_->error(event.str());
+                        logger_->info(event.str());
                         break;
                     }
                     case RdKafka::Event::EVENT_THROTTLE: {
