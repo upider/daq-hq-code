@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     }
     SPDLOG_INFO("sending messages stop");
 
-    sleep(-1);
+    sleep(6000);
     ps->stop();
 
     return 0;
