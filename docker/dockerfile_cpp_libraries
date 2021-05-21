@@ -13,4 +13,4 @@ RUN yum install -y librdkafka-devel boost-devel \
     # install josncpp
     && git clone https://gitee.com/mirrors/jsoncpp.git && cd jsoncpp\
     && mkdir -p build && cd build && sed -i '4s/add_subdirectory(test_lib_json)/#&/g' ../src/CMakeLists.txt && cmake3 .. && make && make install && cd  && rm -rf jsoncpp\
-    && ldconfig
+    && echo "/usr/local/lib64" >> /etc/ld.so.conf && echo "/usr/local/lib" >> /etc/ld.so.conf && ldconfig

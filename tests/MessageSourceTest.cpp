@@ -24,13 +24,8 @@ int main(int argc, char *argv[]) {
     ps(new MessageSource<TestDataMessage>(
        cmdline_parser.get<std::string>("topic_server"), 
        {topic},
-<<<<<<< HEAD
-       cmdline_parser.get<std::size_t>("io_threads")
-       )
-=======
        cmdline_parser.get<int>("io_threads")
-    )
->>>>>>> master
+	)
     );
 
     auto id = cmdline_parser.get<std::string>("source_id");
