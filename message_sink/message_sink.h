@@ -31,7 +31,7 @@ class MessageSink {
          * @param topic_server kafka 地址
          * @param io_threads 处理io线程数
          */
-        MessageSink(const std::string& server_ip, int server_port,  const std::string& topic_server, const std::vector<std::string>& topics, std::size_t io_threads);
+        MessageSink(const std::string& server_ip, int server_port,  const std::string& topic_server, const std::vector<std::string>& topics, int io_threads);
 
         ~MessageSink();
 
@@ -174,7 +174,7 @@ class MessageSink {
         std::vector<std::string> topics_;
         std::string topic_server_;
         std::atomic_bool running_{false};
-        size_t io_threads_;
+        int io_threads_;
         void* zmq_ctx_;
         bool auto_request_ = false;
         uint16_t low_water_marker_;
@@ -232,7 +232,7 @@ template<typename T>
 MessageSink<T>::MessageSink(const std::string& server_ip, int server_port,
                             const std::string& topic_server,
                             const std::vector<std::string>& topics,
-                            std::size_t io_threads)
+                            int io_threads)
     : server_ip_(server_ip), server_port_(server_port),
       topics_(topics), topic_server_(topic_server),
       io_threads_(io_threads),

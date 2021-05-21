@@ -1,0 +1,16 @@
+FROM centos:cpp_tool_chain
+
+#安装必要的库
+RUN yum install -y librdkafka-devel boost-devel \
+    # install protobuf
+    && wget https://github.com/protocolbuffers/protobuf/releases/download/v3.17.0/protobuf-cpp-3.17.0.tar.gz && tar -xf protobuf-cpp-3.17.0.tar.gz \
+    && cd protobuf-3.17.0 && ./configure && make && make install && cd \
+    # install zeromq
+    && cd /etc/yum.repos.d/ && wget https://download.opensuse.org/repositories/network:messaging:zeromq:release-stable/CentOS_7/network:messaging:zeromq:release-stable.repo && yum install -y zeromq-devel && cd\
+    # install spdlog
+    && git clone https://gitee.com/yuzezhong/spdlog.git && cd spdlog \
+    && mkdir -p build && cd build && cmake3 .. && make && make install && cd && rm -rf spdlog\
+    # install josncpp
+    && git clone https://gitee.com/mirrors/jsoncpp.git && cd jsoncpp\
+    && mkdir -p build && cd build && sed -i '4s/add_subdirectory(test_lib_json)/#&/g' ../src/CMakeLists.txt && cmake3 .. && make && make install && cd  && rm -rf jsoncpp\
+    && ldconfig

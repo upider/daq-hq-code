@@ -37,7 +37,7 @@ class MessageSource {
          * @param send_batch
          * @param io_threads
          */
-        MessageSource(const std::string& topic_server, const std::vector<std::string>& topics, std::size_t io_threads);
+        MessageSource(const std::string& topic_server, const std::vector<std::string>& topics, int io_threads);
 
         ~MessageSource();
 
@@ -89,7 +89,7 @@ class MessageSource {
         std::vector<std::string> topics_;
 
         void* zmq_ctx_;
-        size_t io_threads_ = 1;
+        int io_threads_ = 1;
         std::atomic_bool running_{false};
         boost::thread_group recv_request_threads_;
         RdKafka::Conf* kafka_conf_;
@@ -176,7 +176,7 @@ class MessageSource {
 template<typename T>
 MessageSource<T>::MessageSource(const std::string& topic_server,
                                 const std::vector<std::string>& topics,
-                                std::size_t io_threads)
+                                int io_threads)
     : topic_server_(topic_server), topics_(topics),
       io_threads_(io_threads),
       identity_(std::hash<std::string>()(Utils::get_host_ip())),

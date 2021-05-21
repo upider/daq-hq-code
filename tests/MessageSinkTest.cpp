@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
     cmdline_parser.add<int>("port", 0, "server port");
     cmdline_parser.add<std::string>("topic_server", 0, "topic server address (kafka broker list)");
     cmdline_parser.add<std::string>("topic", 0, "subscribe topic");
-    cmdline_parser.add<std::size_t>("io_threads", 0, "threads number for zmq");
+    cmdline_parser.add<int>("io_threads", 0, "threads number for zmq");
     cmdline_parser.add<std::string>("source_id", 0, "message source identity");
 
     cmdline_parser.parse_check(argc, argv);
@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
        cmdline_parser.get<int>("port"),
        cmdline_parser.get<std::string>("topic_server"), 
        {topic},
-       cmdline_parser.get<std::size_t>("io_threads")
+       cmdline_parser.get<int>("io_threads")
        )
     );
 

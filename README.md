@@ -15,6 +15,7 @@ pass data in daq dataflow
 3. Protobuf
 4. spdlog
 5. librdkafka
+6. zmq
 
 ## example
 tests
