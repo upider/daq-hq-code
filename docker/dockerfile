@@ -1,0 +1,7 @@
+FROM centos:cpp_libraries
+
+RUN useradd daq && echo 'daq:daq123' | chpasswd
+USER daq
+RUN mkdir -p /home/daq/project/
+COPY  daq-hq-code/ /home/daq/project/
+RUN cd /home/daq/project/ && mkdir -p build && cd build && cmake3 .. && make

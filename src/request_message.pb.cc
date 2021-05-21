@@ -20,7 +20,7 @@ namespace message_pass {
 constexpr RequestMessage::RequestMessage(
   ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized)
   : sink_(&::PROTOBUF_NAMESPACE_ID::internal::fixed_address_empty_string)
-  , key_(PROTOBUF_ULONGLONG(0))
+  , key_(uint64_t{0u})
   , cmd_(0)
 {}
 struct RequestMessageDefaultTypeInternal {
@@ -69,10 +69,8 @@ const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_reques
   schemas, file_default_instances, TableStruct_request_5fmessage_2eproto::offsets,
   file_level_metadata_request_5fmessage_2eproto, file_level_enum_descriptors_request_5fmessage_2eproto, file_level_service_descriptors_request_5fmessage_2eproto,
 };
-PROTOBUF_ATTRIBUTE_WEAK ::PROTOBUF_NAMESPACE_ID::Metadata
-descriptor_table_request_5fmessage_2eproto_metadata_getter(int index) {
-  ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&descriptor_table_request_5fmessage_2eproto);
-  return descriptor_table_request_5fmessage_2eproto.file_level_metadata[index];
+PROTOBUF_ATTRIBUTE_WEAK const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable* descriptor_table_request_5fmessage_2eproto_getter() {
+  return &descriptor_table_request_5fmessage_2eproto;
 }
 
 // Force running AddDescriptors() at dynamic initialization time.
@@ -120,7 +118,7 @@ RequestMessage::RequestMessage(const RequestMessage& from)
   sink_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (!from._internal_sink().empty()) {
     sink_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, from._internal_sink(), 
-      GetArena());
+      GetArenaForAllocation());
   }
   ::memcpy(&key_, &from.key_,
     static_cast<size_t>(reinterpret_cast<char*>(&cmd_) -
@@ -143,7 +141,7 @@ RequestMessage::~RequestMessage() {
 }
 
 void RequestMessage::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
   sink_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
 }
 
@@ -175,7 +173,6 @@ const char* RequestMessage::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE
   while (!ctx->Done(&ptr)) {
     ::PROTOBUF_NAMESPACE_ID::uint32 tag;
     ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    CHK_(ptr);
     switch (tag >> 3) {
       // .message_pass.RequestMessage.CMD cmd = 1;
       case 1:
@@ -203,7 +200,8 @@ const char* RequestMessage::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE
         continue;
       default: {
       handle_unusual:
-        if ((tag & 7) == 4 || tag == 0) {
+        if ((tag == 0) || ((tag & 7) == 4)) {
+          CHK_(ptr);
           ctx->SetLastTag(tag);
           goto success;
         }
@@ -243,7 +241,7 @@ failure:
   }
 
   // string sink = 3;
-  if (this->sink().size() > 0) {
+  if (!this->sink().empty()) {
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
       this->_internal_sink().data(), static_cast<int>(this->_internal_sink().length()),
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
@@ -269,7 +267,7 @@ size_t RequestMessage::ByteSizeLong() const {
   (void) cached_has_bits;
 
   // string sink = 3;
-  if (this->sink().size() > 0) {
+  if (!this->sink().empty()) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
         this->_internal_sink());
@@ -319,7 +317,7 @@ void RequestMessage::MergeFrom(const RequestMessage& from) {
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
-  if (from.sink().size() > 0) {
+  if (!from.sink().empty()) {
     _internal_set_sink(from._internal_sink());
   }
   if (from.key() != 0) {
@@ -350,8 +348,12 @@ bool RequestMessage::IsInitialized() const {
 
 void RequestMessage::InternalSwap(RequestMessage* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  sink_.Swap(&other->sink_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
+      &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
+      &sink_, GetArenaForAllocation(),
+      &other->sink_, other->GetArenaForAllocation()
+  );
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
       PROTOBUF_FIELD_OFFSET(RequestMessage, cmd_)
       + sizeof(RequestMessage::cmd_)
@@ -361,9 +363,10 @@ void RequestMessage::InternalSwap(RequestMessage* other) {
 }
 
 ::PROTOBUF_NAMESPACE_ID::Metadata RequestMessage::GetMetadata() const {
-  return GetMetadataStatic();
+  return ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(
+      &descriptor_table_request_5fmessage_2eproto_getter, &descriptor_table_request_5fmessage_2eproto_once,
+      file_level_metadata_request_5fmessage_2eproto[0]);
 }
-
 
 // @@protoc_insertion_point(namespace_scope)
 }  // namespace message_pass

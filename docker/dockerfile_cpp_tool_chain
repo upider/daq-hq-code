@@ -1,0 +1,5 @@
+FROM centos:7
+
+#安装cpp工具链
+RUN yum install -y deltarpm epel-release wget libstdc++-devel libstdc++-static gdb gcc gcc-c++ cmake make git \
+ && yum install -y cmake3
