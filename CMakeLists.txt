@@ -49,7 +49,7 @@ include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${Protobuf_INCLUDE_DIRS})
 aux_source_directory(${PROJECT_SOURCE_DIR}/src SOURCES)
-link_directories(${PROJECT_SOURCE_DIR}/libs /usr/lib64)
+link_directories(${PROJECT_SOURCE_DIR}/libs /usr/local/lib64 /usr/local/lib)
 
 add_executable(DataMessageTest tests/DataMessageTest ${SOURCES})
 target_link_libraries(DataMessageTest ${Protobuf_LIBRARIES} pthread)
