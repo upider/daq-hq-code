@@ -78,11 +78,6 @@ class MessageSource {
          */
         std::map<std::string, brwQueue<T*>*> readys_;
 
-        /**
-         * msg has been sent<topic,<sink,message>>
-         */
-        std::map<std::string, std::map<std::string, std::list<T*>*>> sents_;
-
         std::map<std::string, brwQueue<RequestMessage*>*> request_queues_;
 
         std::string topic_server_;
@@ -98,7 +93,7 @@ class MessageSource {
          */
         std::size_t identity_;
 
-        bool send_fixed_{false};
+        bool send_fixed_;
         std::size_t fixed_size_;
         std::size_t fixed_num_;
 
@@ -178,6 +173,7 @@ MessageSource<T>::MessageSource(const std::string& topic_server,
     : topic_server_(topic_server), topics_(topics),
       io_threads_(io_threads),
       identity_(std::hash<std::string>()(Utils::get_host_ip())),
+      send_fixed_(false), fixed_size_(0), fixed_num_(0),
       logger_(MessageLogger::get_logger("MessageSource")),
       kafka_event_cb_(this->logger_)
 {
@@ -253,6 +249,22 @@ MessageSource<T>::~MessageSource() {
             }
         }
         
+        delete queue.second;
+    }
+
+    for(auto queue : request_queues_) {
+        RequestMessage* req;
+        bool ret;
+
+        while (true) {
+            ret = queue.second->try_dequeue(req);
+            if(ret) {
+                delete req;
+            } else {
+                break;
+            }
+        }
+
         delete queue.second;
     }
 
@@ -420,7 +432,7 @@ void MessageSource<T>::task_thread(const std::string& topic) {
                 }
 
                 //send message with zmq to req address
-                T* msg = new T();
+                T* msg;
                 while(!ready->wait_dequeue_timed(msg, std::chrono::milliseconds(50)) && running_) {
                     continue;
                 }
@@ -448,6 +460,12 @@ void MessageSource<T>::task_thread(const std::string& topic) {
         zmq_close(it->second);
     }
 
+    for(auto msgs : thread_local_sents_) {
+        for(auto msg_pair : msgs.second) {
+            delete msg_pair.second;
+        }
+    }
+
     logger_->info("stop task thread for topic: {}", topic);
 }
 
@@ -469,7 +487,11 @@ void MessageSource<T>::store_msg(std::map<std::string, std::map<std::size_t, T*>
 
 template<typename T>
 void MessageSource<T>::delete_msg(std::map<std::string, std::map<std::size_t, T*>>& sents, RequestMessage* req) {
-    sents[req->sink()].erase(req->key());
+    auto it = sents[req->sink()].find(req->key());
+    if(it != sents[req->sink()].end()) {
+        delete it->second;
+        sents[req->sink()].erase(it);
+    }
 }
 
 template<typename T>

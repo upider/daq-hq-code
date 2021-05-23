@@ -36,14 +36,17 @@ int main(int argc, char *argv[])
 
     ps->start();
     std::atomic_bool run{true};
-    std::thread th([&run, ps, topic](){
+    std::string hello = "hello world";
+    std::thread th([&run, ps, topic, hello](){
         std::size_t i = 0;
-        while(run) {
-            TestDataMessage* msg = new TestDataMessage(500);
-            std::memcpy(msg->data(), &i, sizeof(i));
-            std::memcpy((char*)msg->data()+8, "hello world", 11);
-            std::memset((char*)msg->data()+19, 0, 481);
-            msg->size(500);
+        std::size_t total = 500;
+        while(i < 10) {
+            std::size_t size = sizeof(i);
+            TestDataMessage* msg = new TestDataMessage(total);
+            std::memcpy(static_cast<char*>(msg->data()), &i, size);
+            std::memcpy(static_cast<char*>(msg->data())+size, hello.c_str(), hello.size());
+            std::memset(static_cast<char*>(msg->data())+hello.size()+size, 0, total-size-hello.size());
+            msg->size(total);
             ps->send(topic, msg);
             i++;
             sleep(1);

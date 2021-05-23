@@ -7,7 +7,7 @@ using namespace message_pass;
 class TestDataMessage : virtual public IDataMessage
 {
     private:
-        char* buffer_;
+        char* buffer_=NULL;
         std::size_t size_;
         std::size_t capacity_;
 
@@ -15,26 +15,27 @@ class TestDataMessage : virtual public IDataMessage
         //请实现3个构造函数
         TestDataMessage() : buffer_() {}
 
-        TestDataMessage(std::size_t capacity): size_(0), capacity_(capacity) {
-            buffer_ = new char[capacity];
+        TestDataMessage(std::size_t capacity): buffer_(new char[capacity]), size_(0), capacity_(capacity) {
+            std::memset(buffer_, 0, capacity);
         }
 
         TestDataMessage(const void* data, std::size_t size, std::size_t capacity): size_(size), capacity_(capacity) {
             buffer_ = new char[capacity];
             std::memcpy(buffer_, data, size);
+            std::memset(buffer_+size, 0, capacity-size);
         }
 
         virtual ~TestDataMessage() {
-            delete buffer_;
+            delete[] buffer_;
         }
 
         //其他函数
         virtual void* data() {
-            return buffer_;
+            return static_cast<void*>(buffer_);
         }
 
         virtual const void* const_data() const {
-            return buffer_;
+            return static_cast<void*>(buffer_);
         }
 
         virtual std::size_t size() const {
@@ -76,7 +77,9 @@ class TestDataMessage : virtual public IDataMessage
         }
 
         virtual std::size_t key() {
-            return 100 + this->buffer_[0];
+            std::size_t key = 0;
+            std::memcpy(&key, this->buffer_ + 0, sizeof(key));
+            return key;
         }
 
         std::string to_string() {
