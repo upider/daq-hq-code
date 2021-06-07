@@ -211,8 +211,7 @@ void MessageSource<T>::init(const std::vector<std::string>& topics) {
     gethostname(name, len);
     pid_t pid = getpid();
     auto group_id = std::string(name) + "-" + std::to_string(pid);
-    logger_->info("group id = " + group_id);
-    if(kafka_conf_->set("group.id",  name, errstr) != RdKafka::Conf::CONF_OK) {
+    if(kafka_conf_->set("group.id",  group_id, errstr) != RdKafka::Conf::CONF_OK) {
         logger_->error(errstr);
         exit(1);
     }
