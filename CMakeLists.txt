@@ -66,4 +66,14 @@ target_link_libraries(MessageSourceTest ${Boost_LIBRARIES} ${Protobuf_LIBRARIES}
 add_executable(MessageSinkTest tests/MessageSinkTest.cpp ${SOURCES})
 target_link_libraries(MessageSinkTest ${Boost_LIBRARIES} ${Protobuf_LIBRARIES} jsoncpp zmq rdkafka++ pthread)
 
+# fault tests
+add_executable(DemoSource tests/DemoSource.cpp ${SOURCES})
+target_link_libraries(DemoSource ${Boost_LIBRARIES} ${Protobuf_LIBRARIES} jsoncpp zmq rdkafka++ pthread)
+
+add_executable(FaultSink1 tests/FaultSink1.cpp ${SOURCES})
+target_link_libraries(FaultSink1 ${Boost_LIBRARIES} ${Protobuf_LIBRARIES} jsoncpp zmq rdkafka++ pthread)
+
+add_executable(FaultSink2 tests/FaultSink2.cpp ${SOURCES})
+target_link_libraries(FaultSink2 ${Boost_LIBRARIES} ${Protobuf_LIBRARIES} jsoncpp zmq rdkafka++ pthread)
+
 add_library(messagepass SHARED ${SOURCES})
